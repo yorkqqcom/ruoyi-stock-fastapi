@@ -37,3 +37,30 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
 
 </table>
 
+## 项目开发及发布相关
+### 开发
+#### 前端
+```bash
+# 进入前端目录
+cd ruoyi-fastapi-frontend
+
+# 安装依赖
+npm install
+
+#### 后端
+# 进入后端目录
+cd ruoyi-fastapi-backend
+pip3 install -r requirements.txt
+# 配置环境
+在.env.dev文件中配置开发环境的数据库和redis
+# 运行sql文件
+1.新建数据库ruoyi-fastapi(默认，可修改)
+2.使用命令或数据库连接工具运行sql文件夹下的ruoyi-fastapi.sql；
+# 运行后端
+python3 app.py --env=dev
+```
+#### 访问
+```bash
+# 默认账号密码
+账号：admin
+密码：admin123

@@ -141,7 +141,7 @@ export default {
   data() {
     const end = new Date()
     const start = new Date()
-    start.setMonth(start.getMonth() - 3 )
+    start.setMonth(start.getMonth() - 12 )
 
     return {
       analysisData: null, // 改为响应式属性

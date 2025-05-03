@@ -472,7 +472,7 @@ class EnhancedMarketAnalyzer:
                 period='daily',
                 start_date=start_date_str,
                 end_date=end_date_str,
-                # adjust=adjust
+                adjust='hfq'
             )
             df = df.rename(columns=FIELD_MAPPING["stock_zh_a_hist"])
             # 新增代码：设置日期索引
