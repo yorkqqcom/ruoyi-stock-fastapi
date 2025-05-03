@@ -1,7 +1,7 @@
 <p align="center">
 	<img alt="logo" src="https://oscimg.oschina.net/oscnet/up-d3d0a9303e11d522a06cd263f3079027715.png">
 </p>
-<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">Ruoyi-Stock-FastAPI v1.0.0</h1>
+<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">Ruoyi-Stock-FastAPI v0.0.1</h1>
 <h4 align="center">基于RuoYi-Vue-FastAPI扩展的股票行情管理系统</h4>
 <p align="center">
 	<a href="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/stargazers"><img src="https://img.shields.io/github/stars/yorkqqcom/Ruoyi-Stock-FastAPI?style=social"></a>
