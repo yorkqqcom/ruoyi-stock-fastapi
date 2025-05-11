@@ -35,7 +35,6 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
     <tr>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/chat.png"/></td>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/analysis.png"/></td>
-
     </tr>
 </table>
 ## 主要功能
