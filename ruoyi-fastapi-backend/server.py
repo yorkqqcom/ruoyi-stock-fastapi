@@ -25,6 +25,7 @@ from module_admin.controller.user_controller import userController
 from module_generator.controller.gen_controller import genController
 
 from user_module.routers.stock_hist_router import stock_hist_router
+from user_module.routers.ai_router import ai_router
 
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
@@ -84,6 +85,7 @@ controller_list = [
     {'router': genController, 'tags': ['代码生成']},
 
     {'router': stock_hist_router, 'tags': ['个股历史行情']},
+    {'router': ai_router, 'tags': ['AI对话']},
 
 ]
 

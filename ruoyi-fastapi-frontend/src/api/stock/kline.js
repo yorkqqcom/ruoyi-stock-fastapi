@@ -9,7 +9,12 @@ export function getanalyzer(params) {
     data: params  // POST请求使用data传递参数
   })
 }
-
+export function getstocklist(params) {
+  return request({
+    url: '/api/stock/list',  // 修正为正确的路由
+    method: 'get',
+  })
+}
 export function getKline(params) {
   // 参数校验前置处理（避免传递 undefined）
   const processedParams = {

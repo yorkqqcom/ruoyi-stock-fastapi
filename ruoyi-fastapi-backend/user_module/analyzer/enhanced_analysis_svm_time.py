@@ -335,7 +335,7 @@ class EnhancedMarketAnalyzer:
         # 特征工程管道（修改此处使用DynamicQuantileTransformer）
         self.feature_pipe = Pipeline([
             ("features", EnhancedFeatureEngineer()),
-            ("scaler", DynamicQuantileTransformer(n_quantiles=500))  # 使用动态调整的Transformer
+            ("scaler", DynamicQuantileTransformer(n_quantiles=1000))  # 使用动态调整的Transformer
         ])
 
         # 分层集成模型
@@ -349,7 +349,7 @@ class EnhancedMarketAnalyzer:
         """构建包含特征工程和分层集成模型的总管道"""
         feature_pipe = Pipeline([
             ("features", EnhancedFeatureEngineer()),
-            ("scaler", QuantileTransformer(n_quantiles=100))
+            ("scaler", DynamicQuantileTransformer(n_quantiles=1000))
         ])
 
 
@@ -463,7 +463,8 @@ class EnhancedMarketAnalyzer:
 
         # 计算5年前的日期（基于当前系统时间）
         start_date = datetime.datetime.now() - relativedelta(years=5)
-        end_date = datetime.datetime.now() - datetime.timedelta(days=5)
+        # end_date = datetime.datetime.now() - datetime.timedelta(days=5)
+        end_date = datetime.datetime.now()
         start_date_str = start_date.strftime("%Y%m%d")
         end_date_str = end_date.strftime("%Y%m%d")
         try:
@@ -1604,6 +1605,7 @@ class EnhancedMarketAnalyzer:
 
 
 
+
 class EnhancedMarketAnalyzerWithLoader(EnhancedMarketAnalyzer):
     def load_model(self):
         model_path = f"models/{self.symbol}_optimized_model.pkl"
@@ -1631,7 +1633,7 @@ class EnhancedMarketAnalyzerWithLoader(EnhancedMarketAnalyzer):
 
 if __name__ == "__main__":
 
-    symbol = '600000'
+    symbol = '600519'
 
     # try:
     # 示例使用

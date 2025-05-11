@@ -9,6 +9,8 @@ from user_module.analyzer.enhanced_analysis_svm_time import EnhancedMarketAnalyz
 from user_module.services.stock_hist_service import StockHistService
 from utils.response_util import ResponseUtil
 
+
+
 stock_hist_router = APIRouter(prefix="/api/stock", tags=["个股历史行情"])
 @stock_hist_router.get("/kline", response_model=dict)  # 修改路由为/kline
 async def get_kline_data(
@@ -26,6 +28,14 @@ async def get_kline_data(
         end_date=end_date,
         adjust=adjust
     )
+    return ResponseUtil.success(data=results.to_dict(orient="records"))  # 转换DataFrame为字典列表
+
+@stock_hist_router.get("/list", response_model=dict)  # 修改路由为/kline
+async def get_stock_list():
+    """
+    获取K线图数据
+    """
+    results = await StockHistService.get_stock_list()
     return ResponseUtil.success(data=results.to_dict(orient="records"))  # 转换DataFrame为字典列表
 
 

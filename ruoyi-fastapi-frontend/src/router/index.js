@@ -68,7 +68,7 @@ export const constantRoutes = [
     children: [
       {
         path: 'index',
-        component: () => import('@/views/stock/backtest/detail'),
+        component: () => import('@/views/chat/ChatWindow'),
         name: 'Index',
         meta: { title: '首页', icon: 'dashboard', affix: true }
       }

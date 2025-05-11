@@ -2,20 +2,32 @@
   <div class="app-container" @keydown.enter="handleEnterKey">
     <!-- 查询条件 -->
     <el-form :inline="true">
-      <el-form-item label="股票代码">
-        <el-input
+      <el-form-item label="股票代码" prop="symbol">
+        <el-autocomplete
           v-model="queryForm.symbol"
-          ref="symbolInput"
-          :placeholder="lastSymbol || '如：600000'"
+          :fetch-suggestions="fetchSuggestions"
+          placeholder="输入股票代码或名称"
           class="light-input"
           style="width: 200px"
-        />
+          @select="handleSelectSymbol"
+          value-key="symbol"
+          :trigger-on-focus="false"
+          @input="handleSymbolInput"
+        >
+          <template slot-scope="{ item }">
+            <div class="symbol-item">
+              <span class="symbol-code">{{ item.symbol }}</span>
+              <span class="symbol-name">{{ item.name }}</span>
+            </div>
+          </template>
+        </el-autocomplete>
       </el-form-item>
 
       <el-form-item label="复权类型">
         <el-select
           v-model="queryForm.adjustType"
           class="light-select"
+          @change="saveSettings"
         >
           <el-option label="前复权" value="qfq"/>
           <el-option label="后复权" value="hfq"/>
@@ -30,6 +42,7 @@
           class="light-date-picker"
           value-format="yyyy-MM-dd"
           range-separator="至"
+          @change="saveSettings"
         />
       </el-form-item>
 
@@ -51,8 +64,34 @@
       >
         智能分析
       </el-button>
+      <el-button
+        type="success"
+        @click="showAIAnalysis"
+        :loading="aiAnalysisLoading"
+        icon="el-icon-chat-dot-round"
+        style="margin-left: 15px;"
+      >
+        AI分析报告
+      </el-button>
     </el-form>
-
+    <!-- 加载提示 -->
+    <el-alert
+      v-if="loading"
+      title="数据加载中..."
+      type="info"
+      :closable="false"
+      show-icon
+      class="loading-alert"
+    />
+    <el-alert
+      v-if="analysisData && signalsData.length === 0"
+      type="info"
+      title="无买卖信号"
+      description="当前分析周期内未检测到有效的买入或卖出信号"
+      show-icon
+      :closable="false"
+      style="margin-top: 20px;"
+    />
     <!-- ECharts容器 -->
     <div ref="chart" class="chart-container"></div>
 
@@ -111,21 +150,55 @@
         </el-descriptions-item>
       </el-descriptions>
     </el-card>
+
+    <!-- 重点修改AI分析对话框部分 -->
+    <el-dialog
+      title="AI分析报告"
+      :visible.sync="aiAnalysisDialogVisible"
+      width="60%"
+      :before-close="handleAIAnalysisClose"
+    >
+      <div v-loading="aiAnalysisLoading">
+        <!-- 安全渲染HTML内容 -->
+        <div v-if="aiAnalysisReport" class="ai-analysis-content">
+          <div class="analysis-section">
+            <h3>分析报告</h3>
+            <!-- 使用v-html指令渲染安全内容 -->
+            <div v-html="safeAnalysisReport"></div>
+          </div>
+        </div>
+        <div v-else-if="!aiAnalysisLoading" class="no-analysis">
+          暂无AI分析报告
+        </div>
+      </div>
+    </el-dialog>
+
   </div>
 </template>
-<!-- 在分析卡片之后添加提示 -->
-<el-alert
-  v-if="analysisData && signalsData.length === 0"
-  type="info"
-  title="无买卖信号"
-  description="当前分析周期内未检测到有效的买入或卖出信号"
-  show-icon
-  :closable="false"
-  style="margin-top: 20px;"
-/>
+
 <script>
 import * as echarts from 'echarts'
-import { getKline, getanalyzer } from '@/api/stock/kline'
+import { getKline, getanalyzer, getstocklist } from '@/api/stock/kline'
+import { postChat } from '@/api/ai/chat'
+import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github.css'
+import DOMPurify from 'dompurify'
+
+// 配置markdown-it
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true,
+  highlight: function (str, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return hljs.highlight(lang, str).value
+      } catch (__) {}
+    }
+    return '' // 使用默认的转义
+  }
+})
 
 function calculateMA(data, window) {
   return data.map((d, index) => {
@@ -142,90 +215,50 @@ export default {
     const end = new Date()
     const start = new Date()
     start.setMonth(start.getMonth() - 12 )
-
+    // 格式化日期为YYYY-MM-DD
+    const formatDate = (date) => {
+      return date.toISOString().split('T')[0]
+    }
+    // 从localStorage获取保存的设置
+    let savedSettings = {}
+    try {
+      savedSettings = JSON.parse(localStorage.getItem('stockQuerySettings')) || {}
+    } catch (e) {
+      console.error('Error parsing saved settings:', e)
+    }
+    // 设置默认日期范围
+    const defaultDateRange = [
+      formatDate(start),
+      formatDate(end)
+    ]
     return {
-      analysisData: null, // 改为响应式属性
+      mockSymbols: [],
+      analysisData: null,
       analyzeLoading: false,
       signalsData: [],
-      lastSymbol: '',
       loading: false,
       queryForm: {
-        symbol: '600519',
-        adjustType: 'qfq',
-        dateRange: [
-          this.formatDate(start),
-          this.formatDate(end)
-        ]
+        symbol: savedSettings.symbol || '600519',
+        adjustType: savedSettings.adjustType || 'qfq',
+        dateRange: savedSettings.dateRange || defaultDateRange
       },
       chartInstance: null,
-      rawData: [], // 新增原始数据存储
-      baseMetrics: [
-        {
-          label: '训练数据',
-          key: 'train_data_rows',
-          unit: '天',
-          tip: '用于模型训练的有效数据量'
-        },
-        {
-          label: '放量天数',
-          key: 'volume_above_ma5',
-          unit: '天',
-          tip: '成交量突破5日均线的交易日数量'
-        },
-        {
-          label: '均线突破',
-          key: 'price_above_ma20',
-          unit: '天',
-          tip: '收盘价位于20日均线上方的交易日'
-        },
-        {
-          label: '低波动天数',
-          key: 'low_volatility',
-          unit: '天',
-          tip: '日内波动率小于2%的交易日'
-        }
-      ],
-      periodMetrics: [
-        {
-          label: '年化收益',
-          key: 'annualized_return',
-          type: 'percentage',
-          precision: 1,
-          tip: '折算为年收益率的投资回报'
-        },
-        {
-          label: '胜率',
-          key: 'win_rate2',
-          type: 'percentage',
-          precision: 0,
-          tip: '获得正收益的交易日占比'
-        },
-        {
-          label: '波动率',
-          key: 'volatility',
-          type: 'percentage',
-          precision: 1,
-          tip: '收益率的标准差，衡量风险水平'
-        },
-        {
-          label: '最大回撤',
-          key: 'max_drawdown',
-          type: 'percentage',
-          precision: 1,
-          reverse: true,
-          tip: '期间最大亏损幅度'
-        },
-        {
-          label: '夏普比率',
-          key: 'sharpe_ratio',
-          type: 'number',
-          precision: 2,
-          tip: '衡量风险调整后的收益'
-        }
-      ]
+      rawData: [],
+      debounceTimer: null,
+      lastSymbol: '',
+      baseMetrics: [],
+      periodMetrics: [],
+      aiAnalysisDialogVisible: false,
+      aiAnalysisLoading: false,
+      aiAnalysisReport: null,
+      analysisCache: new Map(),
+      cacheExpiration: 30 * 60 * 1000,
     }
   },
 
+  created() {
+    this.loadStockList();
+  },
   mounted() {
     this.initChart()
     this.loadData()
@@ -238,8 +271,30 @@ export default {
       this.chartInstance.dispose()
     }
   },
-
+  computed: {
+    // 添加安全内容计算属性
+    safeAnalysisReport() {
+      return DOMPurify.sanitize(this.aiAnalysisReport)
+    }
+  },
   methods: {
+
+    async loadStockList() {
+      try {
+        const response = await getstocklist();
+        // 根据实际API响应结构调整，确保拿到的是数组
+        this.mockSymbols = response.data || [];
+      } catch (error) {
+        console.error('股票列表加载失败:', error);
+        this.$message.error('股票列表加载失败');
+      }
+    },
+    // 新增股票代码选择处理
+    handleSelectSymbol(item) {
+      this.queryForm.symbol = item.symbol
+      this.loadData()
+    },
+
     // 初始化图表
     initChart() {
       this.chartInstance = echarts.init(this.$refs.chart)
@@ -375,108 +430,111 @@ export default {
       }
       this.chartInstance.setOption(option)
     },
+    // 自动补全逻辑
+    async fetchSuggestions(queryString, cb) {
+      // 确保始终有数组可用
+      const source = Array.isArray(this.mockSymbols) ? this.mockSymbols : [];
+      const results = source.filter(item =>
+        item.symbol.includes(queryString) ||
+        item.name.includes(queryString)
+      ).map(item => ({ ...item, value: item.symbol }));
 
-    // 加载数据 在loadData方法中
-    async loadData() {
-      const currentSymbol = this.queryForm.symbol.trim()
-      if (!/^\d{6}$/.test(currentSymbol)) {
-        this.$message.warning('请输入6位数字股票代码')
+      cb(results);
+    },
+
+    // 输入处理
+    handleSymbolInput(val) {
+      if (val.length > 6) {
+        this.queryForm.symbol = val.slice(0, 6)
         return
       }
+
+      clearTimeout(this.debounceTimer)
+      if (/^\d{6}$/.test(val)) {
+        this.debounceTimer = setTimeout(() => {
+          this.loadData()
+        }, 800)
+      }
+    },
+    // 保存设置
+    saveSettings() {
+      localStorage.setItem('stockQuerySettings', JSON.stringify({
+        symbol: this.queryForm.symbol,
+        adjustType: this.queryForm.adjustType,
+        dateRange: this.queryForm.dateRange
+      }))
+    },
+
+    // 加载数据 在loadData方法中
+
+    async loadData() {
+      if (!this.validateSymbol()) return
 
       this.loading = true
       try {
         const { data } = await getKline(this.queryForm)
+        if (data.length === 0) {
+          this.$message.warning('未找到相关股票数据')
+          return
+        }
+
         this.rawData = data.sort((a, b) => new Date(a.date) - new Date(b.date))
-        this.lastSymbol = currentSymbol
-
-        const dates = this.rawData.map(d => d.date)
-        const kData = this.rawData.map(d => [d.open, d.close, d.low, d.high])
-        const volumes = this.rawData.map(d => d.volume)
-        const ma5 = calculateMA(this.rawData, 5)
-        const ma10 = calculateMA(this.rawData, 10)
-
-        this.chartInstance.setOption({
-          xAxis: [{ data: dates }, { data: dates }],
-          series: [
-            { data: kData },
-            { data: volumes },
-            { data: ma5 },
-            { data: ma10 }
-          ]
-        })
+        this.lastSymbol = this.queryForm.symbol // 保存最后查询的股票代码
+        this.saveSettings()
+        this.updateChart()
       } catch (error) {
-        this.$message.error('数据加载失败')
+        this.handleError(error, '数据加载')
       } finally {
         this.loading = false
       }
     },
 
+    // 通用错误处理
+    handleError(error, action = '') {
+      const defaultMsg = `${action}失败，请检查网络或输入`
+      const message = error.response?.data?.message || error.message || defaultMsg
+      this.$message.error(message)
 
+      if (error.response?.status === 404) {
+        this.queryForm.symbol = ''
+      }
+    },
+
+    // 输入验证
+    validateSymbol() {
+      if (!/^\d{6}$/.test(this.queryForm.symbol)) {
+        this.$message.warning('请输入6位数字股票代码')
+        return false
+      }
+      return true
+    },
+
+    // 增强的回车处理
+    handleEnterKey(event) {
+      const activeElement = document.activeElement
+      if (activeElement?.classList?.contains('el-autocomplete__input')) return
+
+      if (this.queryForm.symbol && !this.loading) {
+        this.loadData()
+      }
+    },
     handleResize() {
       this.chartInstance.resize()
     },
 
-    formatDate(date) {
-      const year = date.getFullYear()
-      const month = String(date.getMonth() + 1).padStart(2, '0')
-      const day = String(date.getDate()).padStart(2, '0')
-      return `${year}-${month}-${day}`
-    },
-    handleKeyDown(event) {
-      // 如果焦点在输入元素内，则不处理
-      const activeElement = document.activeElement;
-      const isInput = activeElement.tagName === 'INPUT' || activeElement.tagName === 'SELECT' || activeElement.tagName === 'TEXTAREA';
-      if (isInput) {
-        return;
-      }
-
-      const key = event.key;
-
-      // 处理数字键
-      if (key >= '0' && key <= '9') {
-        event.preventDefault();
-        this.queryForm.symbol += key;
-      }
-
-      // 处理退格键（可选）
-      if (key === 'Backspace') {
-        event.preventDefault();
-        this.queryForm.symbol = this.queryForm.symbol.slice(0, -1);
-      }
-
-      // 处理回车键
-      if (key === 'Enter') {
-        event.preventDefault();
-        if (this.queryForm.symbol) {
-          this.loadData();
-        }
-      }
-    },
     formatPercentage(value) {
       if (typeof value !== 'number') return '-'
       return `${(value * 100).toFixed(2)}%`
     },
-    handleEnterKey(event) {
-      // 排除以下情况：
-      // 1. 正在输入其他表单元素
-      // 2. 没有输入股票代码
-      // 3. 正在加载中
-      if (
-        event.target.tagName === 'INPUT' ||
-        event.target.tagName === 'TEXTAREA' ||
-        !this.queryForm.symbol ||
-        this.loading
-      ) return
 
-      this.loadData()
-    },
     async handleAnalyze() {
+
       if (!this.lastSymbol) {
         this.$message.warning('请先查询股票数据')
         return
       }
-
+      this.signalsData = [] // 清空旧信号
+      this.analysisData = null // 重置分析数据
       this.analyzeLoading = true
       try {
         const { data } = await getanalyzer({
@@ -506,11 +564,13 @@ export default {
     },
 
     updateChartWithSignals() {
-
+      const formatDate = (dateStr) => {
+        return new Date(dateStr).toISOString().split('T')[0]
+      }
       // 生成标记点数据
       const markPoints = this.signalsData.map(signal => {
         // 兼容带时间戳的日期格式（去除时间部分）
-        const signalDate = signal.date.split(' ')[0]
+        const signalDate = formatDate(signal.date)
         const index = this.rawData.findIndex(d => {
           const dataDate = new Date(d.date).toISOString().split('T')[0]
           return dataDate === signalDate
@@ -561,24 +621,48 @@ export default {
             }
           }
         ]
-      }, { notMerge: false })
+      }, )// { replaceMerge: ['series'] }) // 明确替换指定系列
     },
 
-    // 修改原有键盘处理（移除回车处理）
-    handleKeyInput(event) {
-      const activeTag = document.activeElement.tagName.toLowerCase()
-      if (['input', 'textarea'].includes(activeTag)) return
+// 在methods中添加以下方法
+    updateChart() {
+      if (!this.chartInstance) return
 
-      if (event.key >= '0' && event.key <= '9') {
-        if (this.queryForm.symbol.length < 6) {
-          this.queryForm.symbol += event.key
-        }
-        event.preventDefault()
+      // 转换K线数据
+      const candleData = this.rawData.map(d => [
+        d.open,
+        d.close,
+        d.low,
+        d.high
+      ])
+
+      // 转换成交量数据
+      const volumeData = this.rawData.map(d => d.volume)
+
+      // 计算移动平均线
+      const ma5Data = calculateMA(this.rawData, 5)
+      const ma10Data = calculateMA(this.rawData, 10)
+
+      // 准备x轴数据（日期）
+      const dates = this.rawData.map(d => d.date)
+
+      // 更新图表选项
+      const option = {
+        xAxis: [{ data: dates }, { data: dates }],
+        series: [
+          { data: candleData },          // K线系列
+          { data: volumeData },          // 成交量系列
+          { data: ma5Data },             // MA5系列
+          { data: ma10Data }            // MA10系列
+        ]
       }
 
-      if (event.key === 'Backspace') {
-        this.queryForm.symbol = this.queryForm.symbol.slice(0, -1)
-        event.preventDefault()
+      this.chartInstance.setOption(option)
+      this.handleResize() // 确保图表自适应
+
+      // 如果有信号数据需要显示
+      if (this.signalsData.length > 0) {
+        this.updateChartWithSignals()
       }
     },
     getWinRateStyle(winRate) {
@@ -586,28 +670,79 @@ export default {
       if (winRate > 0.6) return { color: '#67C23A', fontWeight: 'bold' }
       if (winRate < 0.5) return { color: '#F56C6C', fontWeight: 'bold' }
       return {}
-    }
+    },
+    async showAIAnalysis() {
+      if (!this.lastSymbol) {
+        this.$message.warning('请先查询股票数据')
+        return
+      }
+
+      this.aiAnalysisDialogVisible = true
+      this.aiAnalysisLoading = true
+      this.aiAnalysisReport = null
+
+      try {
+        // 检查缓存
+        const cacheKey = `${this.lastSymbol}_analysis`
+        const cachedData = this.getFromCache(cacheKey)
+
+        if (cachedData) {
+          this.aiAnalysisReport = cachedData
+          this.aiAnalysisLoading = false
+          return
+        }
+
+        // 使用postChat接口获取分析报告
+        const response = await postChat({
+          query: `${this.lastSymbol}的主营业务分析`
+        })
+
+        if (response.data && response.data.response) {
+          // 使用markdown-it渲染并净化内容
+          const rawHtml = md.render(response.data.response)
+          this.aiAnalysisReport = DOMPurify.sanitize(rawHtml)
+
+          // 保存到缓存
+          this.saveToCache(cacheKey, htmlContent)
+        }
+      } catch (error) {
+        this.$message.error('AI分析报告生成失败: ' + (error.response?.data?.message || error.message))
+      } finally {
+        this.aiAnalysisLoading = false
+      }
+    },
+
+    // 缓存相关方法
+    saveToCache(key, data) {
+      const cacheItem = {
+        data,
+        timestamp: Date.now()
+      }
+      this.analysisCache.set(key, cacheItem)
+    },
+
+    getFromCache(key) {
+      const cacheItem = this.analysisCache.get(key)
+      if (!cacheItem) return null
+
+      // 检查是否过期
+      if (Date.now() - cacheItem.timestamp > this.cacheExpiration) {
+        this.analysisCache.delete(key)
+        return null
+      }
+
+      return cacheItem.data
+    },
+
+    handleAIAnalysisClose() {
+      this.aiAnalysisDialogVisible = false
+      this.aiAnalysisReport = null
+    },
   }
 }
 </script>
 
 <style scoped>
-/* 在style部分添加 */
-.el-button--warning {
-  background: #ffba00;
-  border-color: #ffba00;
-  color: #fff;
-}
-
-.el-button--warning:hover {
-  background: #ffa200;
-  border-color: #ffa200;
-}
-
-.signal-marker {
-  font-weight: bold;
-  text-shadow: 0 0 3px rgba(0,0,0,0.5);
-}
 
 .app-container {
   background-color: #fff;
@@ -730,5 +865,253 @@ export default {
     width: 100px;
     text-align: left !important;
   }
+}
+.symbol-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+}
+
+.symbol-code {
+  color: #409EFF;
+  font-weight: 600;
+  margin-right: 15px;
+}
+
+.symbol-name {
+  color: #666;
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loading-alert {
+  margin: 10px 0;
+  padding: 8px 16px;
+}
+
+.ai-analysis-content {
+  padding: 20px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #303133;
+}
+
+.analysis-section {
+  margin-bottom: 24px;
+}
+
+.analysis-section h3 {
+  color: #409EFF;
+  font-size: 18px;
+  margin: 24px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #409EFF;
+  font-weight: 600;
+}
+
+.analysis-section h4 {
+  color: #303133;
+  font-size: 16px;
+  margin: 16px 0 12px;
+  font-weight: 600;
+}
+
+.analysis-section p {
+  margin: 12px 0;
+  line-height: 1.8;
+  color: #606266;
+}
+
+.analysis-section strong {
+  color: #303133;
+  font-weight: 600;
+}
+
+.analysis-section ul {
+  padding-left: 20px;
+  margin: 12px 0;
+}
+
+.analysis-section li {
+  margin: 8px 0;
+  color: #606266;
+  line-height: 1.8;
+}
+
+.analysis-section ul ul {
+  margin: 4px 0;
+}
+
+.analysis-section ul ul li {
+  margin: 4px 0;
+  color: #606266;
+}
+
+.analysis-section table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  background-color: #fff;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
+}
+
+.analysis-section th {
+  background-color: #f5f7fa;
+  color: #303133;
+  font-weight: 600;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.analysis-section td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #ebeef5;
+  color: #606266;
+}
+
+.analysis-section tr:last-child td {
+  border-bottom: none;
+}
+
+.analysis-section tr:hover td {
+  background-color: #f5f7fa;
+}
+
+.analysis-section hr {
+  margin: 24px 0;
+  border: none;
+  border-top: 1px solid #ebeef5;
+}
+
+.analysis-section blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  background-color: #f5f7fa;
+  border-left: 4px solid #409EFF;
+  color: #606266;
+}
+
+.analysis-section code {
+  background-color: #f5f7fa;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: #409EFF;
+  font-family: Consolas, Monaco, 'Andale Mono', monospace;
+}
+
+.analysis-section pre {
+  background-color: #f5f7fa;
+  padding: 16px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+
+.analysis-section pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.analysis-section a {
+  color: #409EFF;
+  text-decoration: none;
+}
+
+.analysis-section a:hover {
+  text-decoration: underline;
+}
+
+.analysis-section img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 12px 0;
+}
+
+.no-analysis {
+  text-align: center;
+  color: #909399;
+  padding: 40px 0;
+}
+
+::v-deep .el-dialog__body {
+  padding: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* 滚动条样式 */
+::v-deep .el-dialog__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+::v-deep .el-dialog__body::-webkit-scrollbar-thumb {
+  background-color: #c0c4cc;
+  border-radius: 3px;
+}
+
+::v-deep .el-dialog__body::-webkit-scrollbar-track {
+  background-color: #f5f7fa;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .analysis-section table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .analysis-section th,
+  .analysis-section td {
+    padding: 8px 12px;
+  }
+}
+/* 增强Markdown内容样式 */
+.ai-analysis-content ::v-deep h3 {
+  color: #409EFF;
+  margin: 1em 0 0.5em;
+}
+
+.ai-analysis-content ::v-deep ul {
+  padding-left: 2em;
+  list-style-type: disc;
+}
+
+.ai-analysis-content ::v-deep table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.ai-analysis-content ::v-deep th,
+.ai-analysis-content ::v-deep td {
+  padding: 0.8em;
+  border: 1px solid #ebeef5;
+}
+
+.ai-analysis-content ::v-deep code {
+  background-color: #f5f7fa;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+}
+
+.ai-analysis-content ::v-deep pre {
+  background-color: #f5f7fa;
+  padding: 1em;
+  overflow-x: auto;
+}
+
+.ai-analysis-content ::v-deep a {
+  color: #409EFF;
+  text-decoration: none;
+}
+
+.ai-analysis-content ::v-deep a:hover {
+  text-decoration: underline;
 }
 </style>
