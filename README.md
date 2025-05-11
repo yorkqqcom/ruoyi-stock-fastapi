@@ -151,11 +151,11 @@ python3 akshare_server
 
 #### AI 环境配置
 在项目根目录创建 `ai.env` 文件，配置以下参数：
-
+```bash
 BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 MODEL=qwen-plus-latest
 AI_API_KEY=your-key
-
+```
 ### 访问系统
 ```bash
 # 默认账号密码
