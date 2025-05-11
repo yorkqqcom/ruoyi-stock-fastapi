@@ -155,10 +155,11 @@
     <el-dialog
       title="AI分析报告"
       :visible.sync="aiAnalysisDialogVisible"
-      width="60%"
+      width="70%"
       :before-close="handleAIAnalysisClose"
+      custom-class="ai-analysis-dialog"
     >
-      <div v-loading="aiAnalysisLoading">
+      <div v-loading="aiAnalysisLoading" class="ai-dialog-content">
         <!-- 安全渲染HTML内容 -->
         <div v-if="aiAnalysisReport" class="ai-analysis-content">
           <div class="analysis-section">
@@ -890,6 +891,13 @@ export default {
   padding: 8px 16px;
 }
 
+.ai-dialog-content {
+  min-height: 400px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 4px;
+}
+
 .ai-analysis-content {
   padding: 20px;
   font-size: 14px;
@@ -1039,38 +1047,38 @@ export default {
   padding: 40px 0;
 }
 
-::v-deep .el-dialog__body {
-  padding: 20px;
-  max-height: 70vh;
+.ai-analysis-dialog ::v-deep .el-dialog {
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  margin-top: 10vh !important;
+}
+
+.ai-analysis-dialog ::v-deep .el-dialog__body {
+  flex: 1;
   overflow-y: auto;
+  padding: 0;
 }
 
-/* 滚动条样式 */
-::v-deep .el-dialog__body::-webkit-scrollbar {
-  width: 6px;
+.ai-analysis-dialog ::v-deep .el-loading-mask {
+  background-color: rgba(255, 255, 255, 0.9);
 }
 
-::v-deep .el-dialog__body::-webkit-scrollbar-thumb {
-  background-color: #c0c4cc;
-  border-radius: 3px;
+.ai-analysis-dialog ::v-deep .el-loading-spinner {
+  margin-top: 20vh;
 }
 
-::v-deep .el-dialog__body::-webkit-scrollbar-track {
-  background-color: #f5f7fa;
+.ai-analysis-dialog ::v-deep .el-loading-spinner .circular {
+  width: 42px;
+  height: 42px;
 }
 
-/* 响应式调整 */
-@media (max-width: 768px) {
-  .analysis-section table {
-    display: block;
-    overflow-x: auto;
-  }
-
-  .analysis-section th,
-  .analysis-section td {
-    padding: 8px 12px;
-  }
+.ai-analysis-dialog ::v-deep .el-loading-spinner .el-loading-text {
+  color: #409EFF;
+  margin: 3px 0;
+  font-size: 14px;
 }
+
 /* 增强Markdown内容样式 */
 .ai-analysis-content ::v-deep h3 {
   color: #409EFF;

@@ -26,6 +26,19 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
   - 原型项目：[RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue)
   - 数据支持：[AKShare](https://github.com/akfamily/akshare) 提供全量历史数据接口
 
+## 演示图
+<table>
+    <tr>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-1.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-2.png"/></td>
+
+    </tr>
+    <tr>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/chat.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/analysis.png"/></td>
+
+    </tr>
+</table>
 ## 主要功能
 
 ### 1. 股票行情分析
@@ -152,13 +165,7 @@ AI_API_KEY=your-key
 密码：admin123
 ```
 
-## 演示图
-<table>
-    <tr>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-1.png"/></td>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-2.png"/></td>
-    </tr>
-</table>
+
 
 ## 注意事项
 1. 请确保开发环境满足最低版本要求
