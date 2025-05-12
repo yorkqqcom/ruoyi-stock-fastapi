@@ -62,7 +62,7 @@
         icon="el-icon-data-analysis"
         style="margin-left: 15px;"
       >
-        智能分析
+        买入点分析
       </el-button>
       <el-button
         type="success"
@@ -483,6 +483,7 @@ export default {
         this.lastSymbol = this.queryForm.symbol // 保存最后查询的股票代码
         this.saveSettings()
         this.updateChart()
+        this.updateChartWithSignals()
       } catch (error) {
         this.handleError(error, '数据加载')
       } finally {

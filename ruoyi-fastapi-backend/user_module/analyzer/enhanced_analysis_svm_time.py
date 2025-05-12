@@ -859,7 +859,7 @@ class EnhancedMarketAnalyzer:
         if np.std(cv_results['mean_test_recall']) > 0.1:
             logger.warning(" 召回率波动较大，模型稳定性需提升")
 
-    def generate_trading_signals(self, confidence_threshold: float = 0.65) -> pd.DataFrame:
+    def generate_trading_signals(self, confidence_threshold: float =0.7) -> pd.DataFrame:
         """
         生成交易信号，包含完整的信号生成流程
         """
