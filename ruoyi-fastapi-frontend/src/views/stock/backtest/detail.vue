@@ -42,7 +42,7 @@
           class="light-date-picker"
           value-format="yyyy-MM-dd"
           range-separator="至"
-          @change="saveSettings"
+
         />
       </el-form-item>
 
@@ -222,11 +222,7 @@ export default {
     }
     // 从localStorage获取保存的设置
     let savedSettings = {}
-    try {
-      savedSettings = JSON.parse(localStorage.getItem('stockQuerySettings')) || {}
-    } catch (e) {
-      console.error('Error parsing saved settings:', e)
-    }
+
     // 设置默认日期范围
     const defaultDateRange = [
       formatDate(start),

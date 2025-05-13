@@ -48,11 +48,18 @@ class StockHistService:
         df = df[['symbol', 'name']]
         return df
 
+
     @staticmethod
     async def get_stock_list():
         # 使用当前日期作为缓存键
         cache_key = datetime.now().strftime('%Y-%m-%d')
         return StockHistService._get_cached_stock_list(cache_key)
+
+    @staticmethod
+    async def get_stock_spot_em(cache_key: str) -> pd.DataFrame:
+        df = ak.stock_zh_a_spot_em()
+        df = df.rename(columns=FIELD_MAPPING["stock_zh_a_spot_em"])
+        return df
 
     @staticmethod
     async def get_stock_history(
@@ -62,6 +69,9 @@ class StockHistService:
             adjust: str = None,
 
     ):
+        if adjust == 'none':
+            adjust = ''
+        print(symbol,start_date.strftime('%Y%m%d'),end_date.strftime('%Y%m%d'),adjust)
         df = ak.stock_zh_a_hist(
             symbol=symbol,
             period='daily',
@@ -69,5 +79,7 @@ class StockHistService:
             end_date=end_date.strftime('%Y%m%d'),
             adjust=adjust
         )
+
+
         df = df.rename(columns=FIELD_MAPPING["stock_zh_a_hist"])
         return df
