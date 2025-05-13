@@ -477,6 +477,7 @@ export default {
 
         this.rawData = data.sort((a, b) => new Date(a.date) - new Date(b.date))
         this.lastSymbol = this.queryForm.symbol // 保存最后查询的股票代码
+        this.signalsData =[]
         this.saveSettings()
         this.updateChart()
         this.updateChartWithSignals()
