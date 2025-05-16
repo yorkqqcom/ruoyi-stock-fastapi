@@ -22,6 +22,4 @@ scikit-optimize
 pandas_market_calendars
 openai
 mcp
-itchat-uos
-wxpy
-schedule
+
