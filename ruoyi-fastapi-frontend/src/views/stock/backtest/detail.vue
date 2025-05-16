@@ -693,7 +693,7 @@ export default {
 
         // 使用postChat接口获取分析报告
         const response = await postChat({
-          query: `${this.lastSymbol}的个数分析：
+          query: `获取${this.lastSymbol}的公司概况、主营构成、财务指标-主要指标、资产负债表、利润表、现金流量表等数据进行个股分析：
 1. 近期财务数据分析
 请分析公司近3年营业收入、净利润、毛利率、净利率的变化趋势
 计算并解读关键财务比率：ROE、EPS、资产负债率、流动比率、速动比率

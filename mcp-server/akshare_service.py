@@ -245,113 +245,113 @@ print(stock_zygc_em_df)
             "message": f"数据接口异常: {str(e)}"
         }
 
-# 同花顺-财务指标-主要指标
-@mcp.tool()
-async def stock_financial_abstract_ths(
-        symbol: str = None,
-        indicator: str = None,
-) -> Dict:
-    """
-    同花顺-财务指标-主要指标
-    输入参数：
-    * symbol (str): symbol="000063"
-    * indicator (str): indicator="按报告期"
-
-    输出参数：
-    * 报告期 (object): -
-    * 净利润 (object): -
-    * 净利润同比增长率 (object): -
-    * 扣非净利润 (object): -
-    * 扣非净利润同比增长率 (object): -
-    * 营业总收入 (object): -
-    * 营业总收入同比增长率 (object): -
-    * 基本每股收益 (object): -
-    * 每股净资产 (object): -
-    * 每股资本公积金 (object): -
-    * 每股未分配利润 (object): -
-    * 每股经营现金流 (object): -
-    * 销售净利率 (object): -
-    * 销售毛利率 (object): -
-    * 净资产收益率 (object): -
-    * 净资产收益率-摊薄 (object): -
-    * 营业周期 (object): -
-    * 存货周转率 (object): -
-    * 存货周转天数 (object): -
-    * 应收账款周转天数 (object): -
-    * 流动比率 (object): -
-    * 速动比率 (object): -
-    * 保守速动比率 (object): -
-    * 产权比率 (object): -
-    * 资产负债率 (object): -
-
-    接口示例：
-    import akshare as ak
-
-stock_financial_abstract_ths_df = ak.stock_financial_abstract_ths(symbol="000063", indicator="按报告期")
-print(stock_financial_abstract_ths_df)
-
-    """
-    try:
-        # 参数预处理
-        params = {
-            "symbol": symbol,
-            "indicator": indicator,
-        }
-        params = {k: v for k, v in params.items() if v is not None}
-
-        # 调用AKShare接口（新增空参判断）
-        if params:
-            result = ak.stock_financial_abstract_ths(**params)
-        else:
-            result = ak.stock_financial_abstract_ths()
-
-        # 结果处理
-        if isinstance(result, pd.DataFrame):
-            return handle_akshare_result(result)
-
-        # 处理非DataFrame返回类型
-        return {
-            "status": "success",
-            "data": result,
-            "metadata": {
-                "type": type(result).__name__,
-                "output_schema": [
-                    {"name": "报告期", "type": "object"},
-                    {"name": "净利润", "type": "object"},
-                    {"name": "净利润同比增长率", "type": "object"},
-                    {"name": "扣非净利润", "type": "object"},
-                    {"name": "扣非净利润同比增长率", "type": "object"},
-                    {"name": "营业总收入", "type": "object"},
-                    {"name": "营业总收入同比增长率", "type": "object"},
-                    {"name": "基本每股收益", "type": "object"},
-                    {"name": "每股净资产", "type": "object"},
-                    {"name": "每股资本公积金", "type": "object"},
-                    {"name": "每股未分配利润", "type": "object"},
-                    {"name": "每股经营现金流", "type": "object"},
-                    {"name": "销售净利率", "type": "object"},
-                    {"name": "销售毛利率", "type": "object"},
-                    {"name": "净资产收益率", "type": "object"},
-                    {"name": "净资产收益率-摊薄", "type": "object"},
-                    {"name": "营业周期", "type": "object"},
-                    {"name": "存货周转率", "type": "object"},
-                    {"name": "存货周转天数", "type": "object"},
-                    {"name": "应收账款周转天数", "type": "object"},
-                    {"name": "流动比率", "type": "object"},
-                    {"name": "速动比率", "type": "object"},
-                    {"name": "保守速动比率", "type": "object"},
-                    {"name": "产权比率", "type": "object"},
-                    {"name": "资产负债率", "type": "object"},
-                ]
-            }
-        }
-
-    except Exception as e:
-        logger.error(f"[stock_financial_abstract_ths] 接口错误: {str(e)}", exc_info=True)
-        return {
-            "status": "error",
-            "code": "AKSHARE_ERROR",
-            "message": f"数据接口异常: {str(e)}"
-        }
+# # 同花顺-财务指标-主要指标
+# @mcp.tool()
+# async def stock_financial_abstract_ths(
+#         symbol: str = None,
+#         indicator: str = None,
+# ) -> Dict:
+#     """
+#     同花顺-财务指标-主要指标
+#     输入参数：
+#     * symbol (str): symbol="000063"
+#     * indicator (str): indicator="按报告期"
+#
+#     输出参数：
+#     * 报告期 (object): -
+#     * 净利润 (object): -
+#     * 净利润同比增长率 (object): -
+#     * 扣非净利润 (object): -
+#     * 扣非净利润同比增长率 (object): -
+#     * 营业总收入 (object): -
+#     * 营业总收入同比增长率 (object): -
+#     * 基本每股收益 (object): -
+#     * 每股净资产 (object): -
+#     * 每股资本公积金 (object): -
+#     * 每股未分配利润 (object): -
+#     * 每股经营现金流 (object): -
+#     * 销售净利率 (object): -
+#     * 销售毛利率 (object): -
+#     * 净资产收益率 (object): -
+#     * 净资产收益率-摊薄 (object): -
+#     * 营业周期 (object): -
+#     * 存货周转率 (object): -
+#     * 存货周转天数 (object): -
+#     * 应收账款周转天数 (object): -
+#     * 流动比率 (object): -
+#     * 速动比率 (object): -
+#     * 保守速动比率 (object): -
+#     * 产权比率 (object): -
+#     * 资产负债率 (object): -
+#
+#     接口示例：
+#     import akshare as ak
+#
+# stock_financial_abstract_ths_df = ak.stock_financial_abstract_ths(symbol="000063", indicator="按报告期")
+# print(stock_financial_abstract_ths_df)
+#
+#     """
+#     try:
+#         # 参数预处理
+#         params = {
+#             "symbol": symbol,
+#             "indicator": indicator,
+#         }
+#         params = {k: v for k, v in params.items() if v is not None}
+#
+#         # 调用AKShare接口（新增空参判断）
+#         if params:
+#             result = ak.stock_financial_abstract_ths(**params)
+#         else:
+#             result = ak.stock_financial_abstract_ths()
+#         result = result.tail(8)
+#         # 结果处理
+#         if isinstance(result, pd.DataFrame):
+#             return handle_akshare_result(result)
+#
+#         # 处理非DataFrame返回类型
+#         return {
+#             "status": "success",
+#             "data": result,
+#             "metadata": {
+#                 "type": type(result).__name__,
+#                 "output_schema": [
+#                     {"name": "报告期", "type": "object"},
+#                     {"name": "净利润", "type": "object"},
+#                     {"name": "净利润同比增长率", "type": "object"},
+#                     {"name": "扣非净利润", "type": "object"},
+#                     {"name": "扣非净利润同比增长率", "type": "object"},
+#                     {"name": "营业总收入", "type": "object"},
+#                     {"name": "营业总收入同比增长率", "type": "object"},
+#                     {"name": "基本每股收益", "type": "object"},
+#                     {"name": "每股净资产", "type": "object"},
+#                     {"name": "每股资本公积金", "type": "object"},
+#                     {"name": "每股未分配利润", "type": "object"},
+#                     {"name": "每股经营现金流", "type": "object"},
+#                     {"name": "销售净利率", "type": "object"},
+#                     {"name": "销售毛利率", "type": "object"},
+#                     {"name": "净资产收益率", "type": "object"},
+#                     {"name": "净资产收益率-摊薄", "type": "object"},
+#                     {"name": "营业周期", "type": "object"},
+#                     {"name": "存货周转率", "type": "object"},
+#                     {"name": "存货周转天数", "type": "object"},
+#                     {"name": "应收账款周转天数", "type": "object"},
+#                     {"name": "流动比率", "type": "object"},
+#                     {"name": "速动比率", "type": "object"},
+#                     {"name": "保守速动比率", "type": "object"},
+#                     {"name": "产权比率", "type": "object"},
+#                     {"name": "资产负债率", "type": "object"},
+#                 ]
+#             }
+#         }
+#
+#     except Exception as e:
+#         logger.error(f"[stock_financial_abstract_ths] 接口错误: {str(e)}", exc_info=True)
+#         return {
+#             "status": "error",
+#             "code": "AKSHARE_ERROR",
+#             "message": f"数据接口异常: {str(e)}"
+#         }
 
 # 东方财富-股票-财务分析-资产负债表-按报告期
 @mcp.tool()
@@ -441,7 +441,7 @@ print(stock_profit_sheet_by_report_em_df)
             result = ak.stock_profit_sheet_by_report_em(**params)
         else:
             result = ak.stock_profit_sheet_by_report_em()
-
+        result = result.head(10)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
@@ -465,7 +465,7 @@ print(stock_profit_sheet_by_report_em_df)
             "message": f"数据接口异常: {str(e)}"
         }
 
-
+# 东方财富-股票-财务分析-现金流量表-按报告期
 @mcp.tool()
 async def stock_cash_flow_sheet_by_report_em(
         symbol: str = None,
@@ -497,7 +497,7 @@ print(stock_cash_flow_sheet_by_report_em_df)
             result = ak.stock_cash_flow_sheet_by_report_em(**params)
         else:
             result = ak.stock_cash_flow_sheet_by_report_em()
-
+        result = result.head(10)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
