@@ -5,7 +5,8 @@ export function postChat(params) {
     url: '/api/ai/chat',
     method: 'post',
     data: {
-      query: params.query  // 确保参数名与后端匹配
+      query: params.query,  // 确保参数名与后端匹配
+      tools: params.selected_tools
     }
   })
 }

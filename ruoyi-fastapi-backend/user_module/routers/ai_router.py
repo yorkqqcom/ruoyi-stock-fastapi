@@ -1,90 +1,113 @@
-from dns.dnssecalgs.rsa import PublicRSASHA1
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter,  HTTPException,Body
 from mcp.client.sse import sse_client
 from pydantic import BaseModel
 import httpx
-import akshare as ak
-import pandas as pd
-from datetime import datetime
+from utils.response_util import ResponseUtil
+from typing import Optional, List  # 新增导入
 
 from user_module.services.stock_hist_service import StockHistService
-from utils.response_util import ResponseUtil
-
 import json
 import os
-
-from contextlib import AsyncExitStack
-from typing import Optional
-
-from mcp import ClientSession, StdioServerParameters, stdio_client
-from openai import OpenAI, models
+from typing import  Any
+from mcp import ClientSession
+from openai import OpenAI
 from dotenv import load_dotenv
+
 load_dotenv(dotenv_path="ai.env")
 
 class ChatResponse(BaseModel):
     response: str
     mcp_status: int = 200  # MCP协议状态码
 
-
 ai_router = APIRouter(prefix="/api/ai", tags=["AI对话"])
+
 class AIConfig:
     API_KEY = os.getenv("AI_API_KEY")
     MODEL_NAME = os.getenv("MODEL", "gpt-3.5-turbo")  # 默认值
     BASE_URL = os.getenv("BASE_URL")
 
-
 # 初始化OpenAI客户端
 oai_client = OpenAI(
-    # base_url="http://localhost:11434/v1",  # Add /v1 to the base URL
-    # api_key="ollama"  # API key can be any non-empty string if no auth is set up
-    base_url=AIConfig.BASE_URL,  # Add /v1 to the base URL
-    api_key=AIConfig.API_KEY,  # API key can be any non-empty string if no auth is set up
+    base_url=AIConfig.BASE_URL,
+    api_key=AIConfig.API_KEY,
 )
 
 
 class HybridAgent:
     def __init__(self):
         self.mcp_servers = [
-            {"name": "stock_service", "url": "http://localhost:8000/sse"},
+            {"name": "stock_service",
+             "url": "http://localhost:8000/sse",
+             "category": "financial"}
         ]
 
-    async def execute_query(self, question: str):
+    async def execute_query(self, question: str, model: str = None, selected_tools: Optional[List[str]] = None):
+        model = model or AIConfig.MODEL_NAME
         openai_tools = []
-        service_sessions = {}  # 存储各服务的会话信息
+        tool_registry = {}
 
-        # 1. 连接所有服务并收集工具
+        # 1. 连接所有服务并收集工具（带过滤功能）
         for server in self.mcp_servers:
             try:
                 async with sse_client(server["url"]) as (read, write):
                     async with ClientSession(read, write) as mcp_session:
                         await mcp_session.initialize()
-
-                        # 获取工具列表
                         tools = await mcp_session.list_tools()
-
                         for tool in tools.tools:
+                            # 工具名称过滤逻辑
+                            # if selected_tools and tool.name not in selected_tools:
+                            #     continue
+
                             schema = tool.inputSchema
                             if not isinstance(schema, dict):
                                 continue
-                            if "type" not in schema or schema.get("type") != "object":
+                            if schema.get("type") != "object":
                                 continue
-                            if "properties" not in schema or not isinstance(schema["properties"], dict):
+                            if not isinstance(schema.get("properties"), dict):
                                 continue
+
+                            # 强制转换参数类型为JSON Schema兼容类型
+                            required_fields = []
+                            properties = {}
+                            for param_name, param_schema in schema["properties"].items():
+                                if not isinstance(param_schema, dict):
+                                    continue
+
+                                # 处理类型字段
+                                param_type = param_schema.get("type", "string")
+                                if param_type not in ["string", "number", "integer", "boolean", "object", "array"]:
+                                    param_type = "string"  # 设置默认类型
+
+                                # 处理必填字段
+                                if param_schema.get("required", False):
+                                    required_fields.append(param_name)
+
+                                properties[param_name] = {
+                                    "type": param_type,
+                                    "description": param_schema.get("description", "")
+                                }
+
+                            # 构建符合规范的schema
+                            validated_schema = {
+                                "type": "object",
+                                "properties": properties
+                            }
+                            if required_fields:
+                                validated_schema["required"] = required_fields
 
                             openai_tools.append({
                                 "type": "function",
                                 "function": {
                                     "name": tool.name,
                                     "description": tool.description,
-                                    "parameters": schema
+                                    "parameters": validated_schema
                                 }
                             })
-                            # print(openai_tools)
-                        # 保存会话信息以便后续调用
-                        service_sessions[server["name"]] = {
-                            "url": server["url"],
-                            "tools": [tool.name for tool in tools.tools]
-                        }
+                            tool_registry[tool.name] = {
+                                "server_url": server["url"],
+                                "service_name": server["name"],
+                                "service_category": server["category"]
+                            }
 
             except Exception as e:
                 print(f"连接服务 {server['name']} 失败: {str(e)}")
@@ -93,71 +116,141 @@ class HybridAgent:
         if not openai_tools:
             return "没有可用的服务工具"
 
-        # 2. 调用大模型获取工具决策
-        response = oai_client.chat.completions.create(
-            # model="qwen3:8b",
-            model=AIConfig.MODEL_NAME,
-            messages=[{"role": "user", "content": question}],
-            tools = openai_tools,
-            tool_choice="auto"
-        )
-        print('------finish_reason------',  response.choices[0])
-        # 3. 处理工具调用
-        if response.choices[0].message.tool_calls:
-            tool_calls = response.choices[0].message.tool_calls
-            tool_results = []
+        # 处理选中的工具情况
+        if selected_tools:
+            print('selected_tools',selected_tools)
+            # 过滤出可用的选中工具
+            available_tools = [t for t in openai_tools if t['function']['name'] in selected_tools]
+            if not available_tools:
+                return "选中的工具不可用"
+            # 遍历每个选中的工具并执行
+            available_tool_names = [t['function']['name'] for t in available_tools]
+            all_tool_calls = []
+            all_results = []
+            for tool_name in available_tool_names:
+                print('tool_name', tool_name)
+                current_tool_choice = {
+                    "type": "function",
+                    "function": {"name": tool_name}
+                }
+                # 单次调用模型生成所有工具调用
+                response = oai_client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": question}],
+                    tools=available_tools,
+                    tool_choice=current_tool_choice
+                )
+                message = response.choices[0].message
+                tool_calls = getattr(message, 'tool_calls', [])
 
-            # 遍历所有工具调用
-            for tool_call in tool_calls:
-                # 查找对应服务并执行调用
-                result = await self.execute_tool_call(tool_call, service_sessions)
-                tool_results.append((tool_call, result))
+                # 执行所有工具调用
+                tool_results = []
+                for tool_call in tool_calls:
+                    result = await self._execute_single_tool(tool_call, tool_registry)
+                    tool_results.append((tool_call, result))
 
-            # 构建最终对话上下文
-            messages = self.build_messages(question, tool_calls, tool_results)
-
+            # 构建正确的消息结构
+            final_messages = [
+                {"role": "user", "content": question},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            },
+                            "type": "function"
+                        } for tc in tool_calls
+                    ]
+                }
+            ]
+            for tool_call, result in tool_results:
+                final_messages.append({
+                    "role": "tool",
+                    "content": json.dumps(result),
+                    "tool_call_id": tool_call.id
+                })
+            print('final_messages',len(final_messages),final_messages)
             # 生成最终响应
             final_response = oai_client.chat.completions.create(
-                # model="qwen3:8b",
-                model=AIConfig.MODEL_NAME,
-                messages=messages
+                model=model,
+                messages=final_messages
             )
             return final_response.choices[0].message.content
 
-    async def execute_tool_call(self, tool_call, service_sessions):
-        # 工具调用执行逻辑
-        for server_name, info in service_sessions.items():
-            if tool_call.function.name in info["tools"]:
-                try:
-                    # 检查是否需要股票代码转换
-                    args = json.loads(tool_call.function.arguments)
-                    if 'symbol' in args and not args['symbol'].isdigit():
-                        # 尝试将股票名称转换为代码
-                        df = await StockHistService.get_stock_list()
-                        # 精确匹配
-                        exact_match = df[df['name'] == args['symbol']]
-                        if not exact_match.empty:
-                            args['symbol'] = exact_match.iloc[0]['symbol']
-                        else:
-                            # 模糊匹配
-                            fuzzy_match = df[df['name'].str.contains(args['symbol'], na=False)]
-                            if not fuzzy_match.empty:
-                                args['symbol'] = fuzzy_match.iloc[0]['symbol']
-                            else:
-                                return {"content": f"未找到股票名称 '{args['symbol']}' 对应的股票代码"}
+        else:
+            # 原有自动选择工具逻辑
+            print('openai_tools', openai_tools)
+            response = oai_client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": question}],
+                tools=openai_tools,
+                tool_choice="auto"  # 自动选择工具
+            )
 
-                    async with sse_client(info["url"]) as (read, write):
-                        async with ClientSession(read, write) as mcp_session:
-                            await mcp_session.initialize()
-                            result = await mcp_session.call_tool(
-                                tool_call.function.name,
-                                args
-                            )
-                            return {"content": str(result)}
+            if not response.choices:
+                return "模型未返回有效响应"
 
-                except Exception as e:
-                    return {"content": f"工具执行错误: {str(e)}"}
-        return {"content": "服务未找到"}
+            message = response.choices[0].message
+            tool_calls = getattr(message, 'tool_calls', None)
+            print('tool_calls', tool_calls)
+            if tool_calls:
+                tool_results = []
+                for tool_call in tool_calls:
+
+                    result = await self._execute_single_tool(tool_call, tool_registry)
+                    print(tool_call, result)
+                    tool_results.append((tool_call, result))
+
+                messages = self.build_messages(question, tool_calls, tool_results)
+
+                final_response = oai_client.chat.completions.create(
+                    model=model,
+                    messages=messages
+                )
+                return final_response.choices[0].message.content
+            else:
+                return message.content
+
+    async def _execute_single_tool(self, tool_call, tool_registry):
+        tool_name = tool_call.function.name
+
+        if tool_name not in tool_registry:
+            return {"error": f"工具 {tool_name} 未注册"}
+
+        server_info = tool_registry[tool_name]
+        try:
+            args = json.loads(tool_call.function.arguments)
+            if server_info["service_category"] == "financial":
+                args = await self._preprocess_financial_args(args)
+
+            async with sse_client(server_info["server_url"]) as (read, write):
+                async with ClientSession(read, write) as mcp_session:
+                    await mcp_session.initialize()
+                    # 假设call_tool需要JSON字符串参数
+                    result = await mcp_session.call_tool(tool_name, args)
+                    print(tool_name,result)
+                    return {"content": str(result), "status": "success"}
+        except Exception as e:
+            return {"error": str(e), "status": "failed"}
+
+    async def _preprocess_financial_args(self, args):
+        # if 'symbol' in args and not args['symbol'].isdigit():
+        #     # 假设get_stock_list是异步方法
+        #     df = await StockHistService.get_stock_list()
+        #     exact_match = df[df['name'] == args['symbol']]
+        #     if not exact_match.empty:
+        #         args['symbol'] = exact_match.iloc[0]['symbol']
+        #     else:
+        #         fuzzy_match = df[df['name'].str.contains(args['symbol'], na=False)]
+        #         if not fuzzy_match.empty:
+        #             args['symbol'] = fuzzy_match.iloc[0]['symbol']
+        #         else:
+        #             raise ValueError(f"无效的股票代码: {args['symbol']}")
+        return args
 
     def build_messages(self, question, tool_calls, results):
         messages = [
@@ -177,34 +270,35 @@ class HybridAgent:
                 ]
             }
         ]
-
         for (tool_call, result) in results:
             messages.append({
                 "role": "tool",
-                "content": result.get("content", str(result)),
+                "content": json.dumps(result),  # 确保内容为字符串
                 "tool_call_id": tool_call.id
             })
-        print(messages)
         return messages
 
 class ChatRequest(BaseModel):
     query: str
-    model: str = "deepseek-r1"
+    model: str = "qwen-plus-latest"
     stream: bool = False
     temperature: float = 0.7
-
+    tools: Optional[List[str]] = None  # 新增工具选择字段
 
 @ai_router.post("/chat")
 async def chat(
         request: ChatRequest = Body(...)
 ):
     try:
+        print('selected_tools', request.tools)
         response = await call_llm(
             query=request.query,
             model=request.model,
             stream=request.stream,
-            temperature=request.temperature
+            temperature=request.temperature,
+            selected_tools=request.tools  # 传递工具参数
         )
+
         return ResponseUtil.success(data=ChatResponse(
             response=response,
             mcp_status=200
@@ -218,30 +312,28 @@ async def chat(
             }
         )
 
-
 async def call_llm(
-    query: str,
-    model: str = "deepseek-r1",
-    stream: bool = False,
-    temperature: float = 0.7
+        query: str,
+        model: str = "qwen-plus-latest",
+        stream: bool = False,
+        temperature: float = 0.7,
+        selected_tools: Optional[List[str]] = None  # 新增参数
 ):
     try:
-        print('调用Ollama大模型接口')
         agent = HybridAgent()
-        result = await agent.execute_query(query)
-        print('查询结果', result)
+        result = await agent.execute_query(
+            query,
+            model=model,
+            selected_tools=selected_tools  # 传递工具参数
+        )
         return result
     except httpx.HTTPStatusError as http_err:
-        # HTTP错误，例如：400, 404, 500等
-        print(f'HTTP错误 occurred: {http_err}')  # Python 3.6
         raise HTTPException(
             status_code=http_err.response.status_code,
-            detail=str(http_err)
+            detail={"response": "HTTP错误", "mcp_status": 500}
         )
     except Exception as e:
-        # 其他错误
-        print(f'其他错误 occurred: {e}')  # Python 3.6
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail={"response": str(e), "mcp_status": 500}
         )

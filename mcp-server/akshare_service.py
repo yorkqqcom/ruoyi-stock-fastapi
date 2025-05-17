@@ -53,119 +53,119 @@ def handle_akshare_result(data: pd.DataFrame) -> Dict:
 
     return {
         "data": data.to_dict(orient='records'),
-        "metadata": {
-            "item_count": len(data),
-            "columns": list(data.columns),
-            "dtypes": dict(data.dtypes.astype(str))
-        }
+        # "metadata": {
+        #     "item_count": len(data),
+        #     "columns": list(data.columns),
+        #     "dtypes": dict(data.dtypes.astype(str))
+        # }
     }
 
-# 巨潮资讯-个股-公司概况
-@mcp.tool()
-async def stock_profile_cninfo(
-        symbol: str = None,
-) -> Dict:
-    """
-    巨潮资讯-个股-公司概况
-    输入参数：
-    * symbol (str): symbol="600030"
-
-    输出参数：
-    * 公司名称 (object): -
-    * 英文名称 (object): -
-    * 曾用简称 (object): -
-    * A股代码 (object): -
-    * A股简称 (object): -
-    * B股代码 (object): -
-    * B股简称 (object): -
-    * H股代码 (object): -
-    * H股简称 (object): -
-    * 入选指数 (object): -
-    * 所属市场 (object): -
-    * 所属行业 (object): -
-    * 法人代表 (object): -
-    * 注册资金 (object): -
-    * 成立日期 (object): -
-    * 上市日期 (object): -
-    * 官方网站 (object): -
-    * 电子邮箱 (object): -
-    * 联系电话 (object): -
-    * 传真 (object): -
-    * 注册地址 (object): -
-    * 办公地址 (object): -
-    * 邮政编码 (object): -
-    * 主营业务 (object): -
-    * 经营范围 (object): -
-    * 机构简介 (object): -
-
-    接口示例：
-    import akshare as ak
-
-stock_profile_cninfo_df = ak.stock_profile_cninfo(symbol="600030")
-print(stock_profile_cninfo_df)
-
-    """
-    try:
-        # 参数预处理
-        params = {
-            "symbol": symbol,
-        }
-        params = {k: v for k, v in params.items() if v is not None}
-
-        # 调用AKShare接口（新增空参判断）
-        if params:
-            result = ak.stock_profile_cninfo(**params)
-        else:
-            result = ak.stock_profile_cninfo()
-
-        # 结果处理
-        if isinstance(result, pd.DataFrame):
-            return handle_akshare_result(result)
-
-        # 处理非DataFrame返回类型
-        return {
-            "status": "success",
-            "data": result,
-            "metadata": {
-                "type": type(result).__name__,
-                "output_schema": [
-                    {"name": "公司名称", "type": "object"},
-                    {"name": "英文名称", "type": "object"},
-                    {"name": "曾用简称", "type": "object"},
-                    {"name": "A股代码", "type": "object"},
-                    {"name": "A股简称", "type": "object"},
-                    {"name": "B股代码", "type": "object"},
-                    {"name": "B股简称", "type": "object"},
-                    {"name": "H股代码", "type": "object"},
-                    {"name": "H股简称", "type": "object"},
-                    {"name": "入选指数", "type": "object"},
-                    {"name": "所属市场", "type": "object"},
-                    {"name": "所属行业", "type": "object"},
-                    {"name": "法人代表", "type": "object"},
-                    {"name": "注册资金", "type": "object"},
-                    {"name": "成立日期", "type": "object"},
-                    {"name": "上市日期", "type": "object"},
-                    {"name": "官方网站", "type": "object"},
-                    {"name": "电子邮箱", "type": "object"},
-                    {"name": "联系电话", "type": "object"},
-                    {"name": "传真", "type": "object"},
-                    {"name": "注册地址", "type": "object"},
-                    {"name": "办公地址", "type": "object"},
-                    {"name": "邮政编码", "type": "object"},
-                    {"name": "主营业务", "type": "object"},
-                    {"name": "经营范围", "type": "object"},
-                    {"name": "机构简介", "type": "object"},
-                ]
-            }
-        }
-
-    except Exception as e:
-        logger.error(f"[stock_profile_cninfo] 接口错误: {str(e)}", exc_info=True)
-        return {
-            "status": "error",
-            "code": "AKSHARE_ERROR",
-            "message": f"数据接口异常: {str(e)}"
-        }
+# # 巨潮资讯-个股-公司概况
+# @mcp.tool()
+# async def stock_profile_cninfo(
+#         symbol: str = None,
+# ) -> Dict:
+#     """
+#     巨潮资讯-个股-公司概况
+#     输入参数：
+#     * symbol (str): symbol="600030"
+#
+#     输出参数：
+#     * 公司名称 (object): -
+#     * 英文名称 (object): -
+#     * 曾用简称 (object): -
+#     * A股代码 (object): -
+#     * A股简称 (object): -
+#     * B股代码 (object): -
+#     * B股简称 (object): -
+#     * H股代码 (object): -
+#     * H股简称 (object): -
+#     * 入选指数 (object): -
+#     * 所属市场 (object): -
+#     * 所属行业 (object): -
+#     * 法人代表 (object): -
+#     * 注册资金 (object): -
+#     * 成立日期 (object): -
+#     * 上市日期 (object): -
+#     * 官方网站 (object): -
+#     * 电子邮箱 (object): -
+#     * 联系电话 (object): -
+#     * 传真 (object): -
+#     * 注册地址 (object): -
+#     * 办公地址 (object): -
+#     * 邮政编码 (object): -
+#     * 主营业务 (object): -
+#     * 经营范围 (object): -
+#     * 机构简介 (object): -
+#
+#     接口示例：
+#     import akshare as ak
+#
+# stock_profile_cninfo_df = ak.stock_profile_cninfo(symbol="600030")
+# print(stock_profile_cninfo_df)
+#
+#     """
+#     try:
+#         # 参数预处理
+#         params = {
+#             "symbol": symbol,
+#         }
+#         params = {k: v for k, v in params.items() if v is not None}
+#
+#         # 调用AKShare接口（新增空参判断）
+#         if params:
+#             result = ak.stock_profile_cninfo(**params)
+#         else:
+#             result = ak.stock_profile_cninfo()
+#
+#         # 结果处理
+#         if isinstance(result, pd.DataFrame):
+#             return handle_akshare_result(result)
+#
+#         # 处理非DataFrame返回类型
+#         return {
+#             "status": "success",
+#             "data": result,
+#             "metadata": {
+#                 "type": type(result).__name__,
+#                 "output_schema": [
+#                     {"name": "公司名称", "type": "object"},
+#                     {"name": "英文名称", "type": "object"},
+#                     {"name": "曾用简称", "type": "object"},
+#                     {"name": "A股代码", "type": "object"},
+#                     {"name": "A股简称", "type": "object"},
+#                     {"name": "B股代码", "type": "object"},
+#                     {"name": "B股简称", "type": "object"},
+#                     {"name": "H股代码", "type": "object"},
+#                     {"name": "H股简称", "type": "object"},
+#                     {"name": "入选指数", "type": "object"},
+#                     {"name": "所属市场", "type": "object"},
+#                     {"name": "所属行业", "type": "object"},
+#                     {"name": "法人代表", "type": "object"},
+#                     {"name": "注册资金", "type": "object"},
+#                     {"name": "成立日期", "type": "object"},
+#                     {"name": "上市日期", "type": "object"},
+#                     {"name": "官方网站", "type": "object"},
+#                     {"name": "电子邮箱", "type": "object"},
+#                     {"name": "联系电话", "type": "object"},
+#                     {"name": "传真", "type": "object"},
+#                     {"name": "注册地址", "type": "object"},
+#                     {"name": "办公地址", "type": "object"},
+#                     {"name": "邮政编码", "type": "object"},
+#                     {"name": "主营业务", "type": "object"},
+#                     {"name": "经营范围", "type": "object"},
+#                     {"name": "机构简介", "type": "object"},
+#                 ]
+#             }
+#         }
+#
+#     except Exception as e:
+#         logger.error(f"[stock_profile_cninfo] 接口错误: {str(e)}", exc_info=True)
+#         return {
+#             "status": "error",
+#             "code": "AKSHARE_ERROR",
+#             "message": f"数据接口异常: {str(e)}"
+#         }
 
 # 东方财富网-个股-主营构成
 @mcp.tool()
@@ -207,7 +207,7 @@ print(stock_zygc_em_df)
 
         # 调用AKShare接口（新增空参判断）
         if params:
-            result = ak.stock_zygc_em(**params)
+            result = ak.stock_zygc_em(symbol = symbol)
         else:
             result = ak.stock_zygc_em()
         result = result.head(20)
@@ -304,7 +304,7 @@ print(stock_financial_abstract_ths_df)
             result = ak.stock_financial_abstract_ths(**params)
         else:
             result = ak.stock_financial_abstract_ths()
-        result = result.tail(8)
+        result = result.tail(12)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
@@ -361,14 +361,14 @@ async def stock_balance_sheet_by_report_em(
     """
     东方财富-股票-财务分析-资产负债表-按报告期
     输入参数：
-    * symbol (str): symbol="SH600519"
+    * symbol (str): symbol="SH"
 
     输出参数：
 
     接口示例：
     import akshare as ak
 
-stock_balance_sheet_by_report_em_df = ak.stock_balance_sheet_by_report_em(symbol="SH600519")
+stock_balance_sheet_by_report_em_df = ak.stock_balance_sheet_by_report_em(symbol="SH")
 print(stock_balance_sheet_by_report_em_df)
 
     """
@@ -385,7 +385,7 @@ print(stock_balance_sheet_by_report_em_df)
             result = ak.stock_balance_sheet_by_report_em(**params)
         else:
             result = ak.stock_balance_sheet_by_report_em()
-        result = result.head(10)
+        result = result.head(1)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
@@ -417,14 +417,14 @@ async def stock_profit_sheet_by_report_em(
     """
     东方财富-股票-财务分析-利润表-报告期
     输入参数：
-    * symbol (str): symbol="SH600519"
+    * symbol (str): symbol="SH"
 
     输出参数：
 
     接口示例：
     import akshare as ak
 
-stock_profit_sheet_by_report_em_df = ak.stock_profit_sheet_by_report_em(symbol="SH600519")
+stock_profit_sheet_by_report_em_df = ak.stock_profit_sheet_by_report_em(symbol="SH")
 print(stock_profit_sheet_by_report_em_df)
 
     """
@@ -441,7 +441,7 @@ print(stock_profit_sheet_by_report_em_df)
             result = ak.stock_profit_sheet_by_report_em(**params)
         else:
             result = ak.stock_profit_sheet_by_report_em()
-        result = result.head(10)
+        result = result.head(1)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
@@ -473,14 +473,14 @@ async def stock_cash_flow_sheet_by_report_em(
     """
     东方财富-股票-财务分析-现金流量表-按报告期
     输入参数：
-    * symbol (str): symbol="SH600519"
+    * symbol (str): symbol="SH"
 
     输出参数：
 
     接口示例：
     import akshare as ak
 
-stock_cash_flow_sheet_by_report_em_df = ak.stock_cash_flow_sheet_by_report_em(symbol="SH600519")
+stock_cash_flow_sheet_by_report_em_df = ak.stock_cash_flow_sheet_by_report_em(symbol="SH")
 print(stock_cash_flow_sheet_by_report_em_df)
 
     """
@@ -497,7 +497,7 @@ print(stock_cash_flow_sheet_by_report_em_df)
             result = ak.stock_cash_flow_sheet_by_report_em(**params)
         else:
             result = ak.stock_cash_flow_sheet_by_report_em()
-        result = result.head(10)
+        result = result.head(1)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
