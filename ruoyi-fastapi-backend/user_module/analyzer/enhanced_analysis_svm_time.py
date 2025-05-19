@@ -919,57 +919,94 @@ class EnhancedMarketAnalyzer:
 
     def _generate_raw_signals(self, df: pd.DataFrame, proba: np.ndarray, predictions: np.ndarray) -> pd.DataFrame:
         """生成基础信号框架"""
+        # 验证必要的列是否存在
+        required_columns = ['close', 'low', 'high', 'volume', 'turnover_rate']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            logger.error(f"数据缺少必要的列: {missing_columns}")
+            raise ValueError(f"数据缺少必要的列: {missing_columns}")
+
         signals = pd.DataFrame({
             'date': df.index,
             'close_price': df['close'],
-            'low': df['low'],  # 新增
-            'high': df['high'],  # 新增
+            'low': df['low'],
+            'high': df['high'],
             'prediction': predictions,
             'confidence': proba,
             'signal_type': 'HOLD',
             'position_size': 0.0,
             'stop_loss': None,
             'take_profit': None,
-            'holding_period': 5  # Default holding period of 5 days
-
+            'holding_period': 5
         }, index=df.index)
 
         # 检查输入数据是否为空
         if df.empty or len(proba) == 0 or len(predictions) == 0:
             logger.warning("生成信号时输入数据为空")
             return pd.DataFrame()
+
+        # 验证换手率数据
+        if df['turnover_rate'].isnull().any():
+            logger.warning("换手率数据存在空值，将使用0填充")
+            df['turnover_rate'] = df['turnover_rate'].fillna(0)
+
+        # 计算换手率相关指标
+        turnover_ma5 = df['turnover_rate'].rolling(5, min_periods=1).mean()
+        turnover_ma10 = df['turnover_rate'].rolling(10, min_periods=1).mean()
+        turnover_ma20 = df['turnover_rate'].rolling(20, min_periods=1).mean()
+
+        # 计算换手率变化率
+        turnover_change = df['turnover_rate'].pct_change()
+        turnover_change_ma5 = turnover_change.rolling(5, min_periods=1).mean()
+
+        # 计算换手率标准差
+        turnover_std = df['turnover_rate'].rolling(20, min_periods=1).std()
+
+        # 计算换手率相对强度
+        turnover_rs = df['turnover_rate'] / turnover_ma20.replace(0, 1e-8)  # 避免除以0
+
         # 优化买入信号条件
         volume_ma = df['volume'].rolling(5, min_periods=1).mean()
         trend_cond = df['close'] > df['close'].rolling(20).mean()
         volatility_cond = df['close'].pct_change().rolling(20).std() < 0.03
 
-        # buy_mask = (
-        #         (predictions == 1) &
-        #         (df['volume'] > volume_ma) &
-        #         trend_cond &
-        #         volatility_cond
-        # )
-        # Generate buy signals based on predictions only
-        buy_mask = (predictions == 1)
+        # 换手率条件
+        turnover_cond1 = df['turnover_rate'] > turnover_ma5  # 当前换手率高于5日均线
+        turnover_cond2 = turnover_rs > 1.2  # 换手率相对强度大于1.2
+        turnover_cond3 = turnover_change_ma5 > 0  # 换手率变化趋势向上
+        turnover_cond4 = df['turnover_rate'] > turnover_std  # 当前换手率高于标准差
 
-        signals.loc[buy_mask, 'signal_type'] = 'BUY'
-        signals.loc[buy_mask, 'position_size'] = 0.5
-        # signals.loc[buy_mask, 'position_size'] = np.clip(proba[buy_mask] * 0.2, 0.05, 0.3)
-        # 调试输出
-        print(f"预测为1的数量: {sum(predictions == 1)}")
-        print(f"成交量高于5日均线的数量: {sum(df['volume'] > volume_ma)}")
-        print(f"价格高于20日均线的数量: {sum(trend_cond)}")
-        print(f"波动率低于3%的数量: {sum(volatility_cond)}")
-
+        # 综合买入条件
         buy_mask = (
-            (predictions == 1))
-        # buy_mask = (
-        #         (predictions == 1) &
-        #         (df['volume'] > volume_ma) &
-        #         trend_cond &
-        #         volatility_cond
-        # )
-        print(f"满足所有买入条件的数量: {sum(buy_mask)}")
+                (predictions == 1) &  # 模型预测为上涨
+                (df['volume'] > volume_ma) &  # 成交量大于5日均量
+                trend_cond &  # 价格趋势向上
+                volatility_cond &  # 波动率适中
+                turnover_cond1 &  # 换手率条件1
+                turnover_cond2 &  # 换手率条件2
+                turnover_cond3 &  # 换手率条件3
+                turnover_cond4  # 换手率条件4
+        )
+
+        # 根据换手率动态调整仓位
+        signals.loc[buy_mask, 'signal_type'] = 'BUY'
+        signals.loc[buy_mask, 'position_size'] = np.clip(
+            turnover_rs[buy_mask] * 0.2,  # 基础仓位系数
+            0.1,  # 最小仓位
+            0.5  # 最大仓位
+        )
+
+        # 调试输出
+        logger.info(f"预测为1的数量: {sum(predictions == 1)}")
+        logger.info(f"成交量高于5日均线的数量: {sum(df['volume'] > volume_ma)}")
+        logger.info(f"价格高于20日均线的数量: {sum(trend_cond)}")
+        logger.info(f"波动率低于3%的数量: {sum(volatility_cond)}")
+        logger.info(f"换手率高于5日均线的数量: {sum(turnover_cond1)}")
+        logger.info(f"换手率相对强度大于1.2的数量: {sum(turnover_cond2)}")
+        logger.info(f"换手率变化趋势向上的数量: {sum(turnover_cond3)}")
+        logger.info(f"换手率高于标准差的数量: {sum(turnover_cond4)}")
+        logger.info(f"满足所有买入条件的数量: {sum(buy_mask)}")
+
         return signals
 
     def _enhance_signals(self, signals: pd.DataFrame, market_data: pd.DataFrame) -> pd.DataFrame:
@@ -1114,7 +1151,14 @@ class EnhancedMarketAnalyzer:
                           risk_free_rate: float = 0.01,
                           holding_period: int = 5) -> dict:
         """
-        执行策略回测，评估策略表现（修正版）
+        执行策略回测，评估策略表现（优化版）
+
+        参数:
+            initial_capital: 初始资金
+            transaction_cost: 交易成本（手续费）
+            slippage: 滑点
+            risk_free_rate: 无风险利率
+            holding_period: 持有期
         """
         self.holding_period = holding_period
         try:
@@ -1135,6 +1179,9 @@ class EnhancedMarketAnalyzer:
             highest_price = 0  # 持仓期间最高价
             trades = []  # 交易记录
             active_positions = []  # 跟踪所有活跃持仓
+            daily_returns = []  # 每日收益率
+            max_drawdown = 0  # 最大回撤
+            peak_value = initial_capital  # 峰值资金
 
             # 准备结果DataFrame
             results = pd.DataFrame(index=signals.index)
@@ -1143,12 +1190,20 @@ class EnhancedMarketAnalyzer:
             results['portfolio_value'] = portfolio_value
             results['position'] = 0
             results['returns'] = 0.0
+            results['drawdown'] = 0.0
 
             # 4. 执行回测
             in_position = False  # 初始化持仓状态
 
             for i, (date, row) in enumerate(signals.iterrows()):
                 current_price = market_data.loc[date, 'close']
+
+                # 更新峰值和回撤
+                if portfolio_value > peak_value:
+                    peak_value = portfolio_value
+                current_drawdown = (peak_value - portfolio_value) / peak_value
+                max_drawdown = max(max_drawdown, current_drawdown)
+                results.loc[date, 'drawdown'] = current_drawdown
 
                 # 处理现有持仓
                 positions_to_close = []
@@ -1159,24 +1214,27 @@ class EnhancedMarketAnalyzer:
                     highest_price = max(highest_price, current_price)
                     current_drawdown = (highest_price - current_price) / highest_price
 
-                    # 检查回撤止损
+                    # 动态止损：基于ATR的止损
                     atr = market_data.loc[date, 'ATR'] if 'ATR' in market_data.columns else 0
                     dynamic_stop_level = 0.05 + (atr / current_price) if current_price > 0 else 0.05
 
+                    # 检查止损条件
                     if current_drawdown >= dynamic_stop_level:
                         # 执行止损
                         sell_price = current_price * (1 - slippage)
-                        portfolio_value += position * sell_price * (1 - transaction_cost)
+                        trade_value = position * sell_price * (1 - transaction_cost)
+                        portfolio_value += trade_value
 
                         trades.append({
                             'date': date,
                             'type': 'SELL',
                             'shares': position,
                             'price': sell_price,
-                            'cost': position * sell_price,
-                            'exit_reason': 'retracement_stop',
+                            'cost': trade_value,
+                            'exit_reason': 'stop_loss',
                             'holding_days': (date - entry_date).days,
                             'entry_price': entry_price,
+                            'profit_pct': (sell_price - entry_price) / entry_price
                         })
 
                         position = 0
@@ -1205,14 +1263,14 @@ class EnhancedMarketAnalyzer:
                         'exit_reason': 'time_stop',
                         'holding_days': pos['holding_period'],
                         'entry_price': pos['entry_price'],
-                        'entry_date': entry_date  # 新增字段
+                        'profit_pct': (sell_price - pos['entry_price']) / pos['entry_price']
                     })
 
                     active_positions.remove(pos)
                     if not active_positions:
                         in_position = False
 
-                # 执行新信号（第二天收盘价买入）
+                # 执行新信号
                 if row['signal_type'] == 'BUY' and not in_position:
                     position_size = row['position_size']
                     max_investment = portfolio_value * position_size
@@ -1250,8 +1308,8 @@ class EnhancedMarketAnalyzer:
                             'shares': shares,
                             'price': buy_price,
                             'cost': trade_cost,
-                            'exit_reason': None,  # 明确设置为None
-                            'holding_days': 0  # 买入时持仓天数为0
+                            'exit_reason': None,
+                            'holding_days': 0
                         })
 
                 # 更新每日组合价值
@@ -1259,13 +1317,17 @@ class EnhancedMarketAnalyzer:
                 results.loc[date, 'portfolio_value'] = portfolio_value + current_position_value
                 results.loc[date, 'position'] = sum(pos['shares'] for pos in active_positions)
 
+                # 计算日收益率
                 if i > 0:
                     prev_value = results.iloc[i - 1]['portfolio_value']
                     curr_value = results.loc[date, 'portfolio_value']
-                    results.loc[date, 'returns'] = (curr_value - prev_value) / prev_value
+                    daily_return = (curr_value - prev_value) / prev_value
+                    results.loc[date, 'returns'] = daily_return
+                    daily_returns.append(daily_return)
 
-            if len(trades) < 1 :
+            if len(trades) < 1:
                 return {}
+
             # 5. 计算绩效指标
             performance = self._calculate_performance(results, risk_free_rate, trades)
 
@@ -1284,7 +1346,6 @@ class EnhancedMarketAnalyzer:
                 'charts': '',
                 'analysis_report': analysis_report,
                 'backtest_id': 1,
-
             }
 
         except Exception as e:

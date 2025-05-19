@@ -4,7 +4,7 @@
 	<img alt="logo" src="https://oscimg.oschina.net/oscnet/up-d3d0a9303e11d522a06cd263f3079027715.png">
 </p>
 <h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">Ruoyi-Stock-FastAPI v0.0.1</h1>
-<h4 align="center">Stock Market Analysis System Extended from RuoYi-Vue-FastAPI</h4>
+<h4 align="center">基于RuoYi-Vue-FastAPI扩展的股票行情管理系统</h4>
 <p align="center">
 	<a href="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/stargazers"><img src="https://img.shields.io/github/stars/yorkqqcom/Ruoyi-Stock-FastAPI?style=social"></a>
 	<a href="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI"><img src="https://img.shields.io/badge/RuoyiStockFastAPI-v1.0.0-brightgreen.svg"></a>
@@ -13,20 +13,20 @@
     <img src="https://img.shields.io/badge/MySQL-≥5.7-blue">
 </p>
 
-## Platform Introduction
+## 平台简介
 
-Ruoyi-Stock-FastAPI is a stock market analysis system extended from RuoYi-Vue-FastAPI v1.6.0, adding intelligent stock analysis capabilities to the original system. Core features include:
+Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分析系统，在原系统基础上新增股票智能分析功能。核心特性如下：
 
-* Frontend inherits RuoYi-Vue's Vue + Element UI technology stack
-* Backend uses FastAPI + SQLAlchemy architecture
-* Integration with third-party stock market APIs for real-time data acquisition
-* New stock historical data module
-* Special thanks to:
-  - Base framework: [RuoYi-Vue-FastAPI](https://gitee.com/insistence2022/Ruoyi-Vue-FastAPI)
-  - Prototype project: [RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue)
-  - Data support: [AKShare](https://github.com/akfamily/akshare) providing comprehensive historical data APIs
+* 前端继承 RuoYi-Vue 的 Vue + Element UI 技术栈
+* 后端采用 FastAPI + SQLAlchemy 架构
+* 整合第三方股票行情API实现实时数据获取
+* 新增股票历史行情功能模块
+* 特别鸣谢：
+  - 基础框架：[RuoYi-Vue-FastAPI](https://gitee.com/insistence2022/RuoYi-Vue-FastAPI)
+  - 原型项目：[RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue)
+  - 数据支持：[AKShare](https://github.com/akfamily/akshare) 提供全量历史数据接口
 
-## Demo Screenshots
+## 演示图
 <table>
     <tr>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-1.png"/></td>
@@ -37,137 +37,139 @@ Ruoyi-Stock-FastAPI is a stock market analysis system extended from RuoYi-Vue-Fa
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/analysis.png"/></td>
     </tr>
 </table>
+## 主要功能
 
-## Main Features
+### 1. 股票行情分析
+* K线图表展示
+  - 支持前复权、后复权、不复权切换
+  - 集成MA5、MA10等技术指标
+  - 支持图表缩放和拖动
 
-### 1. Stock Market Analysis
-* K-line Chart Display
-  - Support for forward adjustment, backward adjustment, and no adjustment
-  - Integration of MA5, MA10 and other technical indicators
-  - Support for chart zooming and dragging
+* 智能分析功能
+  - 基于历史数据的买卖信号分析
+  - 多周期回测指标计算
+  - 胜率、收益率等关键指标展示
+  - 可视化交易信号标记
 
-* Intelligent Analysis Features
-  - Buy/sell signal analysis based on historical data
-  - Multi-period backtesting indicator calculation
-  - Display of key metrics like win rate and return rate
-  - Visual trading signal marking
+### 2. AI 智能助手
+* 股票分析报告
+  - 自动生成个股分析报告
+  - 支持公司基本面分析
+  - 主营业务分析
 
-### 2. AI Intelligent Assistant
-* Stock Analysis Reports
-  - Automatic generation of individual stock analysis reports
-  - Company fundamental analysis support
-  - Main business analysis
+* 智能对话功能
+  - 支持自然语言交互
+  - 股票相关问答
+  - 技术指标解释
+  - 投资策略建议
 
-* Intelligent Dialogue Function
-  - Natural language interaction support
-  - Stock-related Q&A
-  - Technical indicator explanation
-  - Investment strategy suggestions
+### 3. MCP Server 服务
+* 数据采集服务
+  - 基于 AKShare 的实时数据采集
+  - 支持 A 股数据
+  - 自动数据更新和同步
+  - 数据格式标准化处理
 
-### 3. MCP Server Service
-* Data Collection Service
-  - Real-time data collection based on AKShare
-  - A-share market data support
-  - Automatic data update and synchronization
-  - Standardized data format processing
 
-* User Configuration Management
-  - Personalized settings storage
-  - Query condition memory
-  - Interface preference settings
+* 用户配置管理
+  - 个性化设置保存
+  - 查询条件记忆
+  - 界面偏好设置
 
-## Technical Features
+## 技术特点
 
-### Frontend Technology Stack
+### 前端技术栈
 * Vue 2.x + Element UI
-* ECharts chart library
-* Markdown-it rendering engine
-* DOMPurify secure rendering
-* Highlight.js code highlighting
+* ECharts 图表库
+* Markdown-it 渲染引擎
+* DOMPurify 安全渲染
+* Highlight.js 代码高亮
 
-### Backend Technology Stack
-* FastAPI framework
+### 后端技术栈
+* FastAPI 框架
 * SQLAlchemy ORM
-* Redis caching
-* MySQL database
-* AKShare data interface
+* Redis 缓存
+* MySQL 数据库
+* AKShare 数据接口
 
-### MCP Server Technical Features
-* Asynchronous Data Processing
-  - Using asyncio for asynchronous operations
-  - Support for concurrent data requests
-  - Efficient data processing pipeline
+### MCP Server 技术特点
+* 异步数据处理
+  - 使用 asyncio 实现异步操作
+  - 支持并发数据请求
+  - 高效的数据处理流程
 
-## Project Development and Release
 
-### Development Environment Requirements
+## 项目开发及发布相关
+
+### 开发环境要求
 * Python ≥ 3.9
 * MySQL ≥ 5.7
 * Node.js ≥ 12
 * Redis ≥ 6.0
 
-### Development Steps
+### 开发步骤
 
-#### Frontend
+#### 前端
 ```bash
-# Enter frontend directory
+# 进入前端目录
 cd ruoyi-fastapi-frontend
 
-# Install dependencies
+# 安装依赖
 npm install
 
-# Start development server
+# 启动开发服务器
 npm run dev
 ```
 
-#### Backend
+#### 后端
 ```bash
-# Enter backend directory
+# 进入后端目录
 cd ruoyi-fastapi-backend
 
-# Install dependencies
+# 安装依赖
 pip3 install -r requirements.txt
 
-# Configure environment
-# Configure database and redis in .env.dev file
+# 配置环境
+# 在.env.dev文件中配置开发环境的数据库和redis
 
-# Run SQL file
-# 1. Create new database ruoyi-fastapi (default, can be modified)
-# 2. Run ruoyi-fastapi.sql in sql folder using command or database tool
+# 运行sql文件
+# 1.新建数据库ruoyi-fastapi(默认，可修改)
+# 2.使用命令或数据库连接工具运行sql文件夹下的ruoyi-fastapi.sql
 
-# Run backend
+# 运行后端
 python3 app.py --env=dev
 ```
 
 #### MCP Server
 ```bash
-# Enter MCP Server directory
+# 进入MCP Server目录
 cd mcp-server
 
-# Start service
+# 启动服务
 python3 akshare_server
 ```
 
-#### AI Environment Configuration
-Create `ai.env` file in project root directory with following parameters:
+#### AI 环境配置
+在项目根目录创建 `ai.env` 文件，配置以下参数：
 ```bash
 BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 MODEL=qwen-plus-latest
 AI_API_KEY=your-key
 ```
-
-### Access System
+### 访问系统
 ```bash
-# Default credentials
-Username: admin
-Password: admin123
+# 默认账号密码
+账号：admin
+密码：admin123
 ```
 
-## Notes
-1. Please ensure development environment meets minimum version requirements
-2. First run requires proper database and Redis configuration
-3. Recommended to use virtual environment for development
-4. Pay attention to protecting sensitive information like API keys
 
-## License
-This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details. 
+
+## 注意事项
+1. 请确保开发环境满足最低版本要求
+2. 首次运行需要正确配置数据库和Redis
+3. 建议使用虚拟环境进行开发
+4. 注意保护API密钥等敏感信息
+
+## 许可证
+本项目采用 MIT 许可证，详情请参见 [LICENSE](LICENSE) 文件。

@@ -385,7 +385,7 @@ print(stock_balance_sheet_by_report_em_df)
             result = ak.stock_balance_sheet_by_report_em(**params)
         else:
             result = ak.stock_balance_sheet_by_report_em()
-        result = result.head(1)
+        result = result.head(4)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
@@ -441,7 +441,7 @@ print(stock_profit_sheet_by_report_em_df)
             result = ak.stock_profit_sheet_by_report_em(**params)
         else:
             result = ak.stock_profit_sheet_by_report_em()
-        result = result.head(1)
+        result = result.head(12)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
@@ -497,7 +497,7 @@ print(stock_cash_flow_sheet_by_report_em_df)
             result = ak.stock_cash_flow_sheet_by_report_em(**params)
         else:
             result = ak.stock_cash_flow_sheet_by_report_em()
-        result = result.head(1)
+        result = result.head(4)
         # 结果处理
         if isinstance(result, pd.DataFrame):
             return handle_akshare_result(result)
