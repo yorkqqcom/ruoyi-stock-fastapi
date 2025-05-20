@@ -47,7 +47,24 @@ async def analyze_stock(
 ):
     analyzer = EnhancedMarketAnalyzer(symbol)
     df = analyzer.fetch_market_data()
-    analyzer.optimize_model(n_iter=1)
+    
+    # 获取模型评估指标
+    cv_results = analyzer.optimize_model(n_iter=1)
+    print('cv_results', cv_results)
+    # 提取评估指标
+    model_metrics = {
+        'roc_auc': float(cv_results.get('mean_test_roc_auc', 0)),
+        'precision': float(cv_results.get('mean_test_precision', 0)),
+        'recall': float(cv_results.get('mean_test_recall', 0)),
+        'f1': float(cv_results.get('mean_test_f1', 0)),
+        'balanced_accuracy': float(cv_results.get('mean_test_balanced_accuracy', 0))
+    }
+    
+    # 确保所有指标都是有效数值
+    for key in model_metrics:
+        if not np.isfinite(model_metrics[key]):
+            model_metrics[key] = 0.0
+
     signals = analyzer.generate_trading_signals()
     backtest_result = analyzer.backtest_strategy(holding_period=5)
     performance = backtest_result.get('performance', {})
@@ -63,6 +80,9 @@ async def analyze_stock(
         return value
 
     performance = {k: safe_convert(v) for k, v in performance.items()}
+    
+    # 将模型评估指标添加到performance中
+    performance.update(model_metrics)
 
     # 处理signals中的数值
     signals_data = []
@@ -81,7 +101,9 @@ async def analyze_stock(
         "train_data_rows": int(len(df)),
         "volume_above_ma5": int((df['volume'] > df['volume'].rolling(5).mean()).sum()),
         "price_above_ma20": int((df['close'] > df['close'].rolling(20).mean()).sum()),
-        "low_volatility": int((df['close'].pct_change().rolling(20).std() < 0.03).sum())
+        "low_volatility": int((df['close'].pct_change().rolling(20).std() < 0.03).sum()),
+        "up_days": int((df['change_pct'] > 0).sum()),  # 上涨天数
+        "down_days": int((df['change_pct'] < 0).sum())  # 下跌天数
     }
 
     return ResponseUtil.success(data={

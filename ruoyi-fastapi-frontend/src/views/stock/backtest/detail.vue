@@ -102,7 +102,7 @@
       </div>
 
       <!-- 基础指标 -->
-      <el-descriptions title="样本数据基础统计" :column="4" border>
+      <el-descriptions title="样本数据基础统计" :column="6" border>
         <el-descriptions-item label="训练数据行数">
           {{ analysisData.stats.train_data_rows || 0 }}天
         </el-descriptions-item>
@@ -114,6 +114,45 @@
         </el-descriptions-item>
         <el-descriptions-item label="低波动率天数">
           {{ analysisData.stats.low_volatility || 0 }}天
+        </el-descriptions-item>
+        <el-descriptions-item label="上涨天数">
+          <span style="color: #67C23A; font-weight: bold;">
+            {{ analysisData.stats.up_days || 0 }}天
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item label="下跌天数">
+          <span style="color: #F56C6C; font-weight: bold;">
+            {{ analysisData.stats.down_days || 0 }}天
+          </span>
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <!-- 新增模型评估指标 -->
+      <el-descriptions title="模型评估指标" :column="5" border style="margin-top: 20px;">
+        <el-descriptions-item label="AUC-ROC">
+          <span :style="getMetricStyle(analysisData.performance.roc_auc)">
+            {{ formatPercentage(analysisData.performance.roc_auc) }}
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item label="精确率">
+          <span :style="getMetricStyle(analysisData.performance.precision)">
+            {{ formatPercentage(analysisData.performance.precision) }}
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item label="召回率">
+          <span :style="getMetricStyle(analysisData.performance.recall)">
+            {{ formatPercentage(analysisData.performance.recall) }}
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item label="F1分数">
+          <span :style="getMetricStyle(analysisData.performance.f1)">
+            {{ formatPercentage(analysisData.performance.f1) }}
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item label="平衡准确率">
+          <span :style="getMetricStyle(analysisData.performance.balanced_accuracy)">
+            {{ formatPercentage(analysisData.performance.balanced_accuracy) }}
+          </span>
         </el-descriptions-item>
       </el-descriptions>
     </el-card>
@@ -788,6 +827,13 @@ export default {
     handleAIAnalysisClose() {
       this.aiAnalysisDialogVisible = false
       this.aiAnalysisReport = null
+    },
+
+    getMetricStyle(value) {
+      if (typeof value !== 'number') return {}
+      if (value >= 0.7) return { color: '#67C23A', fontWeight: 'bold' }
+      if (value >= 0.5) return { color: '#E6A23C', fontWeight: 'bold' }
+      return { color: '#F56C6C', fontWeight: 'bold' }
     },
   }
 }

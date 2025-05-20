@@ -599,7 +599,7 @@ class EnhancedMarketAnalyzer:
             cv_splits: 时间序列交叉验证分割数
 
         返回:
-            最佳参数组合字典
+            包含最佳参数和交叉验证结果的字典
         """
         try:
             # 获取预处理数据
@@ -655,11 +655,18 @@ class EnhancedMarketAnalyzer:
             # 保存最佳模型
             self.model = bayes_cv.best_estimator_
             self._log_optimization_results(bayes_cv)
-            # 记录优化结果
-            train_dates = (X.index.min().date(), X.index.max().date())
+            
+            # 返回完整的交叉验证结果
+            cv_results = {
+                'best_params': best_params,
+                'mean_test_roc_auc': float(bayes_cv.cv_results_['mean_test_roc_auc'][bayes_cv.best_index_]),
+                'mean_test_precision': float(bayes_cv.cv_results_['mean_test_precision'][bayes_cv.best_index_]),
+                'mean_test_recall': float(bayes_cv.cv_results_['mean_test_recall'][bayes_cv.best_index_]),
+                'mean_test_f1': float(bayes_cv.cv_results_['mean_test_f1'][bayes_cv.best_index_]),
+                'mean_test_balanced_accuracy': float(bayes_cv.cv_results_['mean_test_balanced_accuracy'][bayes_cv.best_index_])
+            }
 
-            return bayes_cv.best_params_
-
+            return cv_results
 
         except ValueError as ve:
             logger.error(f"数据准备错误: {str(ve)}")
@@ -859,14 +866,21 @@ class EnhancedMarketAnalyzer:
         if np.std(cv_results['mean_test_recall']) > 0.1:
             logger.warning(" 召回率波动较大，模型稳定性需提升")
 
-    def generate_trading_signals(self, confidence_threshold: float =0.68) -> pd.DataFrame:
+    def generate_trading_signals(self, confidence_threshold: float = 0.68) -> pd.DataFrame:
         """
         生成交易信号，包含完整的信号生成流程
+
+        参数:
+            confidence_threshold: 模型预测置信度阈值，默认0.68
+
+        返回:
+            包含交易信号的DataFrame
         """
         try:
             # 1. 获取市场数据
             df = self.fetch_market_data(refresh=True)
-            # 验证数据列是否匹配
+
+            # 验证数据完整性
             required_cols = self.feature_pipe.named_steps['features'].REQUIRED_RAW_COLS
             missing = [c for c in required_cols if c not in df.columns]
             if missing:
@@ -876,12 +890,10 @@ class EnhancedMarketAnalyzer:
                 return pd.DataFrame()
 
             # 2. 特征工程处理
-
             X = self.feature_pipe.transform(df)
 
-            # 确保X是DataFrame
+            # 确保X是DataFrame格式
             if isinstance(X, np.ndarray):
-                # 获取特征名称
                 feature_engineer = self.feature_pipe.named_steps['features']
                 columns = feature_engineer.REQUIRED_RAW_COLS + (feature_engineer.selected_features or [])
                 X = pd.DataFrame(X, columns=columns, index=df.index)
@@ -892,7 +904,6 @@ class EnhancedMarketAnalyzer:
 
             # 4. 生成基础信号
             signals = self._generate_raw_signals(df, proba, predictions)
-            # 检查生成的信号是否为空
             if signals.empty:
                 logger.warning("生成的交易信号为空")
                 return pd.DataFrame()
@@ -909,7 +920,12 @@ class EnhancedMarketAnalyzer:
             # 8. 信号验证
             signals = self._validate_signals(signals)
 
+            # 9. 信号质量评估
+            signals = self._evaluate_signal_quality(signals, df)
 
+            # # 10. 保存信号
+            # if not signals.empty:
+            #     self._save_signals(signals)
 
             return signals
 
@@ -917,8 +933,86 @@ class EnhancedMarketAnalyzer:
             logger.error(f"信号生成失败: {str(e)}")
             raise
 
+    def _evaluate_signal_quality(self, signals: pd.DataFrame, market_data: pd.DataFrame) -> pd.DataFrame:
+        """
+        评估信号质量并过滤低质量信号
+
+        参数:
+            signals: 交易信号DataFrame
+            market_data: 市场数据DataFrame
+
+        返回:
+            过滤后的高质量信号DataFrame
+        """
+        if signals.empty:
+            return signals
+
+        # 1. 计算信号质量指标
+        signals['signal_quality'] = 0.0
+
+        # 2. 基于技术指标的质量评估
+        if 'RSI' in market_data.columns:
+            rsi = market_data['RSI']
+            signals.loc[signals['signal_type'] == 'BUY', 'signal_quality'] += (
+                                                                                      (rsi > 30) & (rsi < 70)
+                                                                              # RSI在合理区间
+                                                                              ).astype(float) * 0.2
+
+        # 3. 基于成交量的质量评估
+        volume_ma = market_data['volume'].rolling(20).mean()
+        signals.loc[signals['signal_type'] == 'BUY', 'signal_quality'] += (
+                                                                                  market_data['volume'] > volume_ma
+                                                                          # 成交量大于20日均量
+                                                                          ).astype(float) * 0.2
+
+        # 4. 基于趋势的质量评估
+        price_ma = market_data['close'].rolling(20).mean()
+        signals.loc[signals['signal_type'] == 'BUY', 'signal_quality'] += (
+                                                                                  market_data['close'] > price_ma
+                                                                          # 价格在20日均线上方
+                                                                          ).astype(float) * 0.2
+
+        # 5. 基于波动率的质量评估
+        volatility = market_data['close'].pct_change().rolling(20).std()
+        signals.loc[signals['signal_type'] == 'BUY', 'signal_quality'] += (
+                                                                                  volatility < volatility.rolling(
+                                                                              20).mean()  # 波动率低于平均水平
+                                                                          ).astype(float) * 0.2
+
+        # 6. 基于换手率的质量评估
+        turnover_ma = market_data['turnover_rate'].rolling(20).mean()
+        signals.loc[signals['signal_type'] == 'BUY', 'signal_quality'] += (
+                                                                                  market_data[
+                                                                                      'turnover_rate'] > turnover_ma
+                                                                          # 换手率高于平均水平
+                                                                          ).astype(float) * 0.2
+
+        # 7. 过滤低质量信号
+        quality_threshold = 0.0  # 质量阈值
+        signals = signals[signals['signal_quality'] >= quality_threshold]
+
+        # 8. 记录信号质量统计
+        if not signals.empty:
+            logger.info(f"信号质量统计:")
+            logger.info(f"平均质量分数: {signals['signal_quality'].mean():.2f}")
+            logger.info(f"高质量信号数量: {len(signals)}")
+            logger.info(f"最高质量分数: {signals['signal_quality'].max():.2f}")
+            logger.info(f"最低质量分数: {signals['signal_quality'].min():.2f}")
+
+        return signals
+
     def _generate_raw_signals(self, df: pd.DataFrame, proba: np.ndarray, predictions: np.ndarray) -> pd.DataFrame:
-        """生成基础信号框架"""
+        """
+        生成基础交易信号框架
+
+        参数:
+            df: 市场数据DataFrame
+            proba: 模型预测概率
+            predictions: 模型预测结果
+
+        返回:
+            包含基础信号的DataFrame
+        """
         # 验证必要的列是否存在
         required_columns = ['close', 'low', 'high', 'volume', 'turnover_rate']
         missing_columns = [col for col in required_columns if col not in df.columns]
@@ -926,6 +1020,12 @@ class EnhancedMarketAnalyzer:
             logger.error(f"数据缺少必要的列: {missing_columns}")
             raise ValueError(f"数据缺少必要的列: {missing_columns}")
 
+        # 检查输入数据是否为空
+        if df.empty or len(proba) == 0 or len(predictions) == 0:
+            logger.warning("生成信号时输入数据为空")
+            return pd.DataFrame()
+
+        # 初始化信号DataFrame
         signals = pd.DataFrame({
             'date': df.index,
             'close_price': df['close'],
@@ -940,6 +1040,24 @@ class EnhancedMarketAnalyzer:
             'holding_period': 5
         }, index=df.index)
 
+        # 计算技术指标
+        # 1. 移动平均线
+        df['MA5'] = df['close'].rolling(window=5).mean()
+        df['MA10'] = df['close'].rolling(window=10).mean()
+        df['MA20'] = df['close'].rolling(window=20).mean()
+        df['MA60'] = df['close'].rolling(window=60).mean()
+
+        # 2. 成交量指标
+        df['volume_ma5'] = df['volume'].rolling(window=5).mean()
+        df['volume_ma10'] = df['volume'].rolling(window=10).mean()
+        df['volume_ma20'] = df['volume'].rolling(window=20).mean()
+
+        # 3. 换手率指标
+        df['turnover_ma5'] = df['turnover_rate'].rolling(window=5).mean()
+        df['turnover_ma10'] = df['turnover_rate'].rolling(window=10).mean()
+        df['turnover_ma20'] = df['turnover_rate'].rolling(window=20).mean()
+
+        # 4. 波动率指标
         # 检查输入数据是否为空
         if df.empty or len(proba) == 0 or len(predictions) == 0:
             logger.warning("生成信号时输入数据为空")
@@ -951,12 +1069,14 @@ class EnhancedMarketAnalyzer:
             df['turnover_rate'] = df['turnover_rate'].fillna(0)
 
         # 计算换手率相关指标
+        turnover_ma3 = df['turnover_rate'].rolling(3, min_periods=1).mean()
         turnover_ma5 = df['turnover_rate'].rolling(5, min_periods=1).mean()
         turnover_ma10 = df['turnover_rate'].rolling(10, min_periods=1).mean()
         turnover_ma20 = df['turnover_rate'].rolling(20, min_periods=1).mean()
 
         # 计算换手率变化率
         turnover_change = df['turnover_rate'].pct_change()
+        turnover_change_ma3 = turnover_change.rolling(3, min_periods=1).mean()
         turnover_change_ma5 = turnover_change.rolling(5, min_periods=1).mean()
 
         # 计算换手率标准差
@@ -971,22 +1091,29 @@ class EnhancedMarketAnalyzer:
         volatility_cond = df['close'].pct_change().rolling(20).std() < 0.03
 
         # 换手率条件
-        turnover_cond1 = df['turnover_rate'] > turnover_ma5  # 当前换手率高于5日均线
-        turnover_cond2 = turnover_rs > 1.2  # 换手率相对强度大于1.2
-        turnover_cond3 = turnover_change_ma5 > 0  # 换手率变化趋势向上
+        turnover_cond1 = df['turnover_rate'] > turnover_ma3  # 当前换手率高于3日均线
+        turnover_cond2 = turnover_rs > 1  # 换手率相对强度大于1.0
+        turnover_cond3 = turnover_change_ma3 > 0  # 换手率变化趋势向上
         turnover_cond4 = df['turnover_rate'] > turnover_std  # 当前换手率高于标准差
 
-        # 综合买入条件
+        # # 综合买入条件
         buy_mask = (
-                (predictions == 1) &  # 模型预测为上涨
-                (df['volume'] > volume_ma) &  # 成交量大于5日均量
-                trend_cond &  # 价格趋势向上
-                volatility_cond &  # 波动率适中
+                (predictions == 1) &
                 turnover_cond1 &  # 换手率条件1
                 turnover_cond2 &  # 换手率条件2
                 turnover_cond3 &  # 换手率条件3
                 turnover_cond4  # 换手率条件4
-        )
+        )  # 模型预测为上涨
+        # buy_mask = (
+        #     (predictions == 1) &  # 模型预测为上涨
+        #     (df['volume'] > volume_ma) &  # 成交量大于5日均量
+        #     trend_cond &  # 价格趋势向上
+        #     volatility_cond &  # 波动率适中
+        #     turnover_cond1 &  # 换手率条件1
+        #     turnover_cond2 &  # 换手率条件2
+        #     turnover_cond3 &  # 换手率条件3
+        #     turnover_cond4  # 换手率条件4
+        # )
 
         # 根据换手率动态调整仓位
         signals.loc[buy_mask, 'signal_type'] = 'BUY'
@@ -1001,8 +1128,8 @@ class EnhancedMarketAnalyzer:
         logger.info(f"成交量高于5日均线的数量: {sum(df['volume'] > volume_ma)}")
         logger.info(f"价格高于20日均线的数量: {sum(trend_cond)}")
         logger.info(f"波动率低于3%的数量: {sum(volatility_cond)}")
-        logger.info(f"换手率高于5日均线的数量: {sum(turnover_cond1)}")
-        logger.info(f"换手率相对强度大于1.2的数量: {sum(turnover_cond2)}")
+        logger.info(f"换手率高于3日均线的数量: {sum(turnover_cond1)}")
+        logger.info(f"换手率相对强度大于1的数量: {sum(turnover_cond2)}")
         logger.info(f"换手率变化趋势向上的数量: {sum(turnover_cond3)}")
         logger.info(f"换手率高于标准差的数量: {sum(turnover_cond4)}")
         logger.info(f"满足所有买入条件的数量: {sum(buy_mask)}")
@@ -1019,8 +1146,6 @@ class EnhancedMarketAnalyzer:
         # 1. 确保数据对齐
         market_data = market_data.copy()
         signals = signals.copy()
-
-
 
         # 3. 合并信号和市场数据
         # signals = signals.join(market_data[['ATR']], how='left')
@@ -1070,6 +1195,7 @@ class EnhancedMarketAnalyzer:
         )
 
         return signals
+
     def _validate_signals(self, signals: pd.DataFrame) -> pd.DataFrame:
         """增强版信号验证，包含SELL信号检查"""
         # 原有验证逻辑
@@ -1330,7 +1456,7 @@ class EnhancedMarketAnalyzer:
 
             # 5. 计算绩效指标
             performance = self._calculate_performance(results, risk_free_rate, trades)
-
+            print('performance',performance)
             # 6. 生成分析报告
             analysis_report = self._generate_analysis_report(
                 performance=performance,
@@ -1354,146 +1480,32 @@ class EnhancedMarketAnalyzer:
 
     def _generate_analysis_report(self, performance: dict, trades: list,
                                   signals: pd.DataFrame, results_df: pd.DataFrame) -> str:
-        """
-        生成详细的文字分析报告
+        """生成详细的文字分析报告"""
+        try:
+            # 1. 数据验证
+            if not performance or not trades:
+                return "无法生成报告：缺少必要的性能数据或交易记录"
 
-        参数:
-            performance: 绩效指标字典
-            trades: 交易记录列表
-            signals: 信号DataFrame
-            results_df: 回测结果DataFrame
-
-        返回:
-            格式化后的分析报告字符串
-        """
-        # 转换交易记录为DataFrame
-        trade_df = pd.DataFrame(trades)
-        exit_report = ""
-        # 计算实际交易次数（成对的买入卖出才算一次完整交易）
-        if not trade_df.empty:
-            # 计算买入和卖出次数
-            buy_count = len(trade_df[trade_df['type'] == 'BUY'])
-            sell_count = len(trade_df[trade_df['type'] == 'SELL'])
-            complete_trades = min(buy_count, sell_count)
-
-            # 计算盈利因子
-            winning_amount = trade_df[trade_df['type'] == 'SELL']['cost'].sum()
-            losing_amount = trade_df[trade_df['type'] == 'BUY']['cost'].sum()
-            profit_factor = abs(winning_amount / losing_amount) if losing_amount != 0 else np.inf
-
-            # 新增：统计退出原因
-            if 'exit_reason' in trade_df.columns:
-                exit_stats = trade_df['exit_reason'].value_counts()
-                exit_report = "\n".join([f"    - {reason}: {count}次"
-                                         for reason, count in exit_stats.items()])
-        else:
-            complete_trades = 0
-            profit_factor = 0
-            exit_report = "    - 无交易记录"
-
-        # 计算信号执行率
-        buy_signals = sum(signals['signal_type'] == 'BUY')
-        execution_rate = complete_trades / buy_signals if buy_signals > 0 else 0
-
-        # 生成报告
-        # - 平均持仓时间: {performance['avg_hold_time']:.1f} 天
-        # - 累计持仓时间: {performance['sum_hold_time']}天
-        report = f"""
-        ========== 策略回测分析报告 ==========
-
-        一、基本信息
-        - 概念板块: {self.symbol}
-        - 回测期间: {performance['start_date']} 至 {performance['end_date']}
-        - 交易天数: {performance['trading_days']} 天
-        - 买入信号数量: {buy_signals} 次
-        - 实际执行交易: {performance['complete_trades']} 次
-        - 信号执行率: {execution_rate:.1%}
-
-
-        二、绩效指标
-        - 累计收益率: {performance['total_return']:.2%}
-        - 年化收益率: {performance['annualized_return']:.2%}
-        - 最大回撤: {performance['max_drawdown']:.2%}
-        - 夏普比率: {performance['sharpe_ratio']:.2f}
-        - 索提诺比率: {performance['sortino_ratio']:.2f}
-        - 胜率: {performance['win_rate']:.2%}
-        - 盈亏比: {performance['profit_ratio']:.2f}
-        - 盈利因子: {profit_factor:.2f}
-
-        三、风险分析
-        - 年化波动率: {performance['annualized_volatility']:.2%}
-        - 正收益天数: {performance['positive_days']} 天
-        - 负收益天数: {performance['negative_days']} 天
-        - Calmar比率: {performance['calmar_ratio']:.2f}
-
-        四、交易分析
-        - 平均仓位比例: {signals['position_size'].mean():.2%}
-        - 最高仓位比例: {signals['position_size'].max():.2%}
-        - 买入交易总成本: {trade_df[trade_df['type'] == 'BUY']['cost'].sum():.2f}
-        - 卖出交易总收入: {trade_df[trade_df['type'] == 'SELL']['cost'].sum():.2f}
-
-
-        """
-        report += f"""
-        五、周期表现分析
-        - 5日平均收益: {performance.get('avg_return_5_day', 0):.2%} 
-        - 5日年化收益率: {performance.get('annualized_return_5_day', 0):.2%}
-        - 5日胜率: {performance.get('win_rate2_5_day', 0):.2%}
-        - 5日年化波动率: {performance.get('volatility_5_day', 0):.2%}
-        - 5日最大回撤: {performance.get('max_drawdown_5_day', 0):.2%}
-        - 5日夏普比率: {performance.get('sharpe_ratio_5_day', 0):.2f}
-        - 5日索提诺比率: {performance.get('sortino_ratio_5_day', 0):.2f}
-        - 5日盈亏比: {performance.get('profit_ratio_5_day', 0):.2f}
-        - 5日Calmar比率: {performance.get('calmar_ratio_5_day', 0):.2f}
-        ---
-        - 10日平均收益: {performance.get('avg_return_10_day', 0):.2%}
-        - 10日年化收益率: {performance.get('annualized_return_10_day', 0):.2%}
-        - 10日胜率: {performance.get('win_rate2_10_day', 0):.2%}
-        - 10日年化波动率: {performance.get('volatility_10_day', 0):.2%}
-        - 10日最大回撤: {performance.get('max_drawdown_10_day', 0):.2%}
-        - 10日夏普比率: {performance.get('sharpe_ratio_10_day', 0):.2f}
-        - 10日索提诺比率: {performance.get('sortino_ratio_10_day', 0):.2f}
-        - 10日盈亏比: {performance.get('profit_ratio_10_day', 0):.2f}
-        - 10日Calmar比率: {performance.get('calmar_ratio_10_day', 0):.2f}
-        ---
-        - 20日平均收益: {performance.get('avg_return_20_day', 0):.2%}
-        - 20日年化收益率: {performance.get('annualized_return_20_day', 0):.2%}
-        - 20日胜率: {performance.get('win_rate2_20_day', 0):.2%}
-        - 20日年化波动率: {performance.get('volatility_20_day', 0):.2%}
-        - 20日最大回撤: {performance.get('max_drawdown_20_day', 0):.2%}
-        - 20日夏普比率: {performance.get('sharpe_ratio_20_day', 0):.2f}
-        - 20日索提诺比率: {performance.get('sortino_ratio_20_day', 0):.2f}
-        - 20日盈亏比: {performance.get('profit_ratio_20_day', 0):.2f}
-        - 20日Calmar比率: {performance.get('calmar_ratio_20_day', 0):.2f}
-
-        六、退出原因分析
-        {exit_report}
-        """
-        # 添加策略评估结论
-        if performance['annualized_return'] > 0.15 and performance['max_drawdown'] < 0.2:
-            report += "\n    ★★★ 策略表现优秀 - 高收益低回撤"
-        elif performance['annualized_return'] > 0.1:
-            report += "\n    ★★ 策略表现良好 - 收益尚可"
-        elif performance['annualized_return'] > 0:
-            report += "\n    ★ 策略表现一般 - 需要优化"
-        else:
-            report += "\n    策略表现不佳 - 建议重新设计"
-
-        # 添加改进建议
-        report += "\n\n    五、改进建议"
-        if execution_rate < 0.5:
-            report += "\n    - 信号执行率低，检查资金管理或滑点设置"
-        if performance['win_rate'] < 0.4:
-            report += "\n    - 考虑提高信号过滤条件，减少低质量交易"
-        if performance['profit_ratio'] < 1:
-            report += "\n    - 优化止盈止损策略，提高盈亏比"
-        if performance['max_drawdown'] > 0.3:
-            report += "\n    - 加强风险控制，降低最大回撤"
-
-        report += "\n\n    ========== 报告结束 =========="
-        print(report)
-
-        return report
+            # 2. 转换交易记录为DataFrame
+            trade_df = pd.DataFrame(trades)
+            
+            # 3. 计算关键指标
+            metrics = self._calculate_key_metrics(performance, trade_df, signals)
+            
+            # 4. 生成报告主体
+            report = self._generate_report_sections(metrics)
+            
+            # 5. 添加策略评估
+            report += self._evaluate_strategy_performance(metrics)
+            
+            # 6. 添加改进建议
+            report += self._generate_improvement_suggestions(metrics)
+            
+            return report
+            
+        except Exception as e:
+            logger.error(f"生成分析报告时出错: {str(e)}")
+            return "报告生成失败，请检查数据完整性"
 
     def _calculate_performance(self, results_df: pd.DataFrame, risk_free_rate: float, trades: list) -> dict:
         """综合绩效指标计算（优化合并版）"""
@@ -1663,9 +1675,118 @@ class EnhancedMarketAnalyzer:
         excess_return = returns.mean() * 252 - risk_free_rate
         return excess_return / downside_volatility
 
+    def _calculate_key_metrics(self, performance: dict, trade_df: pd.DataFrame, signals: pd.DataFrame) -> dict:
+        """计算关键指标"""
+        metrics = {}
+        
+        # 1. 基础交易统计
+        metrics['total_trades'] = len(trade_df[trade_df['type'] == 'BUY'])
+        metrics['winning_trades'] = len(trade_df[trade_df['profit_pct'] > 0])
+        metrics['win_rate'] = metrics['winning_trades'] / metrics['total_trades'] if metrics['total_trades'] > 0 else 0
+        
+        # 2. 收益指标
+        metrics['total_return'] = performance.get('total_return', 0)
+        metrics['annualized_return'] = performance.get('annualized_return', 0)
+        
+        # 3. 风险指标
+        metrics['max_drawdown'] = performance.get('max_drawdown', 0)
+        metrics['sharpe_ratio'] = performance.get('sharpe_ratio', 0)
+        
+        # 4. 交易质量指标
+        metrics['avg_hold_time'] = performance.get('avg_hold_time', 0)
+        metrics['profit_factor'] = self._calculate_profit_factor(trade_df)
+        
+        return metrics
 
+    def _generate_report_sections(self, metrics: dict) -> str:
+        """生成报告各个部分"""
+        report = []
+        
+        # 1. 基本信息
+        report.append("=== 策略回测分析报告 ===")
+        report.append("\n一、基本信息")
+        report.append(f"- 回测期间: {metrics.get('start_date', 'N/A')} 至 {metrics.get('end_date', 'N/A')}")
+        report.append(f"- 总交易次数: {metrics['total_trades']}")
+        report.append(f"- 胜率: {metrics['win_rate']:.2%}")
+        
+        # 2. 收益分析
+        report.append("\n二、收益分析")
+        report.append(f"- 总收益率: {metrics['total_return']:.2%}")
+        report.append(f"- 年化收益率: {metrics['annualized_return']:.2%}")
+        
+        # 3. 风险分析
+        report.append("\n三、风险分析")
+        report.append(f"- 最大回撤: {metrics['max_drawdown']:.2%}")
+        report.append(f"- 夏普比率: {metrics['sharpe_ratio']:.2f}")
+        
+        return "\n".join(report)
 
+    def _evaluate_strategy_performance(self, metrics: dict) -> str:
+        """评估策略表现"""
+        evaluation = []
+        
+        # 1. 收益评估
+        if metrics['annualized_return'] > 0.15:
+            evaluation.append("★ 收益表现优秀")
+        elif metrics['annualized_return'] > 0.1:
+            evaluation.append("★ 收益表现良好")
+        else:
+            evaluation.append("★ 收益表现一般")
+        
+        # 2. 风险评估
+        if metrics['max_drawdown'] < 0.1:
+            evaluation.append("★ 风险控制优秀")
+        elif metrics['max_drawdown'] < 0.2:
+            evaluation.append("★ 风险控制良好")
+        else:
+            evaluation.append("★ 风险控制需要改进")
+        
+        return "\n".join(evaluation)
 
+    def _generate_improvement_suggestions(self, metrics: dict) -> str:
+        """生成改进建议"""
+        suggestions = []
+        
+        # 1. 收益相关建议
+        if metrics['annualized_return'] < 0.1:
+            suggestions.append("- 考虑优化选股策略，提高收益潜力")
+        
+        # 2. 风险相关建议
+        if metrics['max_drawdown'] > 0.2:
+            suggestions.append("- 加强风险控制，降低最大回撤")
+        
+        # 3. 交易质量建议
+        if metrics['win_rate'] < 0.4:
+            suggestions.append("- 提高信号质量，增加胜率")
+        
+        return "\n".join(suggestions)
+
+    def _calculate_profit_factor(self, trade_df: pd.DataFrame) -> float:
+        """
+        计算盈亏比
+        
+        参数:
+            trade_df: 交易记录DataFrame
+            
+        返回:
+            float: 盈亏比
+        """
+        if trade_df.empty:
+            return 0.0
+            
+        # 分离盈利和亏损交易
+        profitable_trades = trade_df[trade_df['profit_pct'] > 0]
+        losing_trades = trade_df[trade_df['profit_pct'] <= 0]
+        
+        # 计算总盈利和总亏损
+        total_profit = profitable_trades['profit_pct'].sum() if not profitable_trades.empty else 0
+        total_loss = abs(losing_trades['profit_pct'].sum()) if not losing_trades.empty else 0
+        
+        # 计算盈亏比
+        if total_loss == 0:
+            return float('inf') if total_profit > 0 else 0.0
+            
+        return total_profit / total_loss
 
 class EnhancedMarketAnalyzerWithLoader(EnhancedMarketAnalyzer):
     def load_model(self):
