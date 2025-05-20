@@ -502,18 +502,40 @@ class EnhancedMarketAnalyzer:
 
     def _handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
         """智能缺失值处理"""
-
         # 价格字段前向填充
         price_cols = ['open', 'high', 'low', 'close']
         df[price_cols] = df[price_cols].ffill().bfill()
 
         # 量能字段零值填充
         df['volume'] = df['volume'].fillna(0)
-        df['turnover_rate'] = df['turnover_rate'].fillna(0)
+        
+        # 换手率智能填充
+        if df['turnover_rate'].isnull().any():
+            # 1. 计算20日移动平均换手率
+            ma_turnover = df['turnover_rate'].rolling(window=20, min_periods=1).mean()
+            
+            # 2. 计算行业平均换手率（如果有行业数据）
+            # 这里可以添加行业数据的处理逻辑
+            
+            # 3. 使用移动平均填充缺失值
+            df['turnover_rate'] = df['turnover_rate'].fillna(ma_turnover)
+            
+            # 4. 如果仍有缺失值（比如前20天都是NaN），使用前向填充
+            df['turnover_rate'] = df['turnover_rate'].ffill()
+            
+            # 5. 如果仍有缺失值，使用后向填充
+            df['turnover_rate'] = df['turnover_rate'].bfill()
+            
+            # 6. 如果仍有缺失值，使用0填充
+            df['turnover_rate'] = df['turnover_rate'].fillna(0)
+            
+            # 记录填充情况
+            filled_count = df['turnover_rate'].isnull().sum()
+            if filled_count > 0:
+                logger.warning(f"换手率数据填充后仍有 {filled_count} 个缺失值，已使用0填充")
 
-        # 百分数字段均值填充
-        pct_cols = ['change_pct', 'amplitude_pct', 'turnover_rate']
-        # df[pct_cols] = df[pct_cols].fillna(df[pct_cols].mean())
+        # 其他百分数字段均值填充
+        pct_cols = ['change_pct', 'amplitude_pct']
         for col in pct_cols:
             if df[col].isna().all():
                 df[col] = 0  # 全NaN时填充0
@@ -751,6 +773,7 @@ class EnhancedMarketAnalyzer:
             'stacking_model__svm__C': Real(0.1, 100, prior='log-uniform'),
             'stacking_model__svm__gamma': Real(1e-5, 1, prior='log-uniform'),
             'stacking_model__svm__kernel': ['rbf', 'sigmoid', 'poly'],
+
 
             # 元学习器参数空间
             # 'stacking_model__final_estimator__n_estimators': Integer(50, 200),
@@ -1002,17 +1025,7 @@ class EnhancedMarketAnalyzer:
         return signals
 
     def _generate_raw_signals(self, df: pd.DataFrame, proba: np.ndarray, predictions: np.ndarray) -> pd.DataFrame:
-        """
-        生成基础交易信号框架
-
-        参数:
-            df: 市场数据DataFrame
-            proba: 模型预测概率
-            predictions: 模型预测结果
-
-        返回:
-            包含基础信号的DataFrame
-        """
+        """生成基础交易信号框架"""
         # 验证必要的列是否存在
         required_columns = ['close', 'low', 'high', 'volume', 'turnover_rate']
         missing_columns = [col for col in required_columns if col not in df.columns]
@@ -1024,6 +1037,19 @@ class EnhancedMarketAnalyzer:
         if df.empty or len(proba) == 0 or len(predictions) == 0:
             logger.warning("生成信号时输入数据为空")
             return pd.DataFrame()
+
+        # 验证换手率数据
+        if df['turnover_rate'].isnull().any():
+            logger.warning("换手率数据存在空值，将使用移动平均填充")
+            # 使用20日移动平均填充
+            ma_turnover = df['turnover_rate'].rolling(window=20, min_periods=1).mean()
+            df['turnover_rate'] = df['turnover_rate'].fillna(ma_turnover)
+            # 如果仍有缺失值，使用前向填充
+            df['turnover_rate'] = df['turnover_rate'].ffill()
+            # 如果仍有缺失值，使用后向填充
+            df['turnover_rate'] = df['turnover_rate'].bfill()
+            # 如果仍有缺失值，使用0填充
+            df['turnover_rate'] = df['turnover_rate'].fillna(0)
 
         # 初始化信号DataFrame
         signals = pd.DataFrame({
