@@ -113,3 +113,19 @@ async def analyze_stock(
         "performance": performance,
         "analysis_report": analysis_report
     })
+
+@stock_hist_router.post("/predictability")
+async def analyze_market_predictability(
+    symbol: str = Body(...),
+    start_date: str = Body(...),
+    end_date: str = Body(...)
+):
+    """
+    分析市场可预测性
+    """
+    results = await StockHistService.analyze_market_predictability(
+        symbol=symbol,
+        start_date=start_date,
+        end_date=end_date
+    )
+    return ResponseUtil.success(data=results)

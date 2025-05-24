@@ -36,20 +36,22 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/chat.png"/></td>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/analysis.png"/></td>
     </tr>
+    <tr>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/predictability.png"/></td>
+    </tr>
 </table>
 ## 主要功能
 
 ### 1. 股票行情分析
-* K线图表展示
-  - 支持前复权、后复权、不复权切换
-  - 集成MA5、MA10等技术指标
-  - 支持图表缩放和拖动
-
 * 智能分析功能
   - 基于历史数据的买卖信号分析
   - 多周期回测指标计算
   - 胜率、收益率等关键指标展示
-  - 可视化交易信号标记
+
+* 市场预测性分析
+  - 基于方差比率(VR)的市场预测性分析
+  - 多周期自相关分析
+  - 市场状态识别（动量/均值回归/随机）
 
 ### 2. AI 智能助手
 * 股票分析报告
@@ -84,6 +86,8 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
 * Markdown-it 渲染引擎
 * DOMPurify 安全渲染
 * Highlight.js 代码高亮
+* 响应式布局设计
+* 数据可视化组件
 
 ### 后端技术栈
 * FastAPI 框架
@@ -91,6 +95,8 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
 * Redis 缓存
 * MySQL 数据库
 * AKShare 数据接口
+* NumPy 数值计算
+* SciPy 统计分析
 
 ### MCP Server 技术特点
 * 异步数据处理

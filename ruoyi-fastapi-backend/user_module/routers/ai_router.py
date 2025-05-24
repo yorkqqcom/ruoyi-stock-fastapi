@@ -4,6 +4,8 @@ from pydantic import BaseModel
 import httpx
 from utils.response_util import ResponseUtil
 from typing import Optional, List  # 新增导入
+import asyncio
+from contextlib import asynccontextmanager
 
 from user_module.services.stock_hist_service import StockHistService
 import json
@@ -32,6 +34,51 @@ oai_client = OpenAI(
     api_key=AIConfig.API_KEY,
 )
 
+class McpServerManager:
+    def __init__(self):
+        self.servers = [
+            {
+                "id": "stock_service_1",
+                "name": "股票分析服务",
+                "url": "http://localhost:8000/sse",
+                "category": "financial",
+                "status": "offline"
+            }
+        ]
+        self.status_check_timeout = 5  # 状态检查超时时间（秒）
+    
+    @asynccontextmanager
+    async def _timeout_context(self, timeout: float):
+        try:
+            async with asyncio.timeout(timeout):
+                yield
+        except asyncio.TimeoutError:
+            raise Exception("服务器状态检查超时")
+    
+    async def check_server_status(self, server_url: str) -> str:
+        try:
+            async with self._timeout_context(self.status_check_timeout):
+                async with sse_client(server_url) as (read, write):
+                    async with ClientSession(read, write) as mcp_session:
+                        await mcp_session.initialize()
+                        return "online"
+        except Exception as e:
+            print(f"服务器状态检查失败: {str(e)}")
+            return "offline"
+    
+    async def update_all_servers_status(self):
+        tasks = []
+        for server in self.servers:
+            task = asyncio.create_task(self.check_server_status(server["url"]))
+            tasks.append((server, task))
+        
+        for server, task in tasks:
+            try:
+                status = await task
+                server["status"] = status
+            except Exception as e:
+                print(f"更新服务器 {server['id']} 状态失败: {str(e)}")
+                server["status"] = "offline"
 
 class HybridAgent:
     def __init__(self):

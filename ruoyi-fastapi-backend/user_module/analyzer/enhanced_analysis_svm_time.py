@@ -85,9 +85,10 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
         "low",
         "volume",
         "turnover_rate",
-        # "amplitude_pct",
         "change_pct",
-        # "amount",
+        "rank",  # 新增热度排名
+        "new_fans",  # 新增新晋粉丝
+        "loyal_fans",  # 新增铁杆粉丝
     ]
 
     def __init__(
@@ -104,6 +105,9 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
             'month',
             'is_month_end',
             'price_volume_div',
+            'rank_change',  # 新增排名变化
+            'fans_growth',  # 新增粉丝增长
+            'fans_ratio',  # 新增粉丝比例
         ]
         # 配置技术指标参数
         self._init_ta_params()
@@ -211,6 +215,28 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
 
         # Z-Score
         new_features["zscore"] = self._adaptive_zscore(df["close"])
+
+        # 热度相关特征
+        if 'rank' in df.columns:
+            # 排名变化
+            new_features['rank_change'] = df['rank'].diff()
+            # 排名变化率
+            new_features['rank_change_pct'] = df['rank'].pct_change()
+            # 排名移动平均
+            new_features['rank_ma5'] = df['rank'].rolling(5).mean()
+            new_features['rank_ma10'] = df['rank'].rolling(10).mean()
+
+        # 粉丝相关特征
+        if 'new_fans' in df.columns and 'loyal_fans' in df.columns:
+            # 粉丝增长
+            new_features['fans_growth'] = df['new_fans'] + df['loyal_fans']
+            # 粉丝增长率
+            new_features['fans_growth_rate'] = new_features['fans_growth'].pct_change()
+            # 粉丝比例
+            new_features['fans_ratio'] = df['new_fans'] / (df['loyal_fans'] + 1e-6)  # 避免除零
+            # 粉丝移动平均
+            new_features['fans_ma5'] = new_features['fans_growth'].rolling(5).mean()
+            new_features['fans_ma10'] = new_features['fans_growth'].rolling(10).mean()
 
         return new_features
 
@@ -330,8 +356,6 @@ class EnhancedMarketAnalyzer:
         self.selected_features = []  # 初始化为空列表
         self.holding_period = 5
 
-
-
         # 特征工程管道（修改此处使用DynamicQuantileTransformer）
         self.feature_pipe = Pipeline([
             ("features", EnhancedFeatureEngineer()),
@@ -341,45 +365,36 @@ class EnhancedMarketAnalyzer:
         # 分层集成模型
         self.model = self._build_ensemble_model()
 
-        # # 风险控制模块
-        # from .risk_management import RiskManager  # 假设有独立风险模块
-        # self.risk_manager = RiskManager(**self.config["risk_params"])
-
-    def _build_ensemble_model(self) -> Pipeline:
-        """构建包含特征工程和分层集成模型的总管道"""
-        feature_pipe = Pipeline([
-            ("features", EnhancedFeatureEngineer()),
-            ("scaler", DynamicQuantileTransformer(n_quantiles=1000))
-        ])
-
-
-        base_models = [
-            ('svm', SVC(
-                        probability=True,
-                        kernel='rbf',
-                        class_weight='balanced',
-                        cache_size=1000
-            ))
-        ]
-        # 元学习器
-        meta_model = LogisticRegression(class_weight='balanced', solver='liblinear')
-
-        # 分层集成模型
-        stacking_model = StackingClassifier(
-            estimators=base_models,
-            final_estimator=meta_model,
-            stack_method='predict_proba',
-            passthrough=True,
-            n_jobs=-1  # 启用并行
-        )
-
-        # 总管道：特征工程 + 集成模型
-        model_pipeline = Pipeline([
-            ('feature_pipe', feature_pipe),
-            ('stacking_model', stacking_model)
-        ])
-
-        return model_pipeline
+    def _fetch_hot_rank_data(self) -> pd.DataFrame:
+        """获取股票热度排名数据"""
+        try:
+            # 转换股票代码格式
+            if self.symbol.startswith('6'):
+                symbol = f"SH{self.symbol}"
+            else:
+                symbol = f"SZ{self.symbol}"
+                
+            # 获取热度数据
+            hot_rank_df = ak.stock_hot_rank_detail_em(symbol=symbol)
+            
+            # 重命名列
+            hot_rank_df = hot_rank_df.rename(columns={
+                '时间': 'date',
+                '排名': 'rank',
+                '证券代码': 'symbol',
+                '新晋粉丝': 'new_fans',
+                '铁杆粉丝': 'loyal_fans'
+            })
+            
+            # 设置日期索引
+            hot_rank_df['date'] = pd.to_datetime(hot_rank_df['date'])
+            hot_rank_df.set_index('date', inplace=True)
+            
+            return hot_rank_df
+            
+        except Exception as e:
+            logger.error(f"获取热度数据失败: {str(e)}")
+            return pd.DataFrame()
 
     def fetch_market_data(self, refresh: bool = False) -> pd.DataFrame:
         """
@@ -399,6 +414,15 @@ class EnhancedMarketAnalyzer:
         try:
             # 原始数据查询
             raw_df = self._execute_market_query()
+            
+            # 获取热度数据
+            hot_rank_df = self._fetch_hot_rank_data()
+            
+            # 合并热度数据
+            if not hot_rank_df.empty:
+                raw_df = raw_df.join(hot_rank_df[['rank', 'new_fans', 'loyal_fans']], how='left')
+                # 填充缺失值
+                raw_df[['rank', 'new_fans', 'loyal_fans']] = raw_df[['rank', 'new_fans', 'loyal_fans']].fillna(method='ffill')
 
             logger.info(f"获取原始数据 {self.symbol} 行数: {len(raw_df)}")
             if raw_df.empty:
@@ -433,8 +457,6 @@ class EnhancedMarketAnalyzer:
             # 存储处理版本
             self._data_versions['processed'] = processed_df.copy()
 
-
-
             return processed_df
 
         except Exception as e:
@@ -447,6 +469,41 @@ class EnhancedMarketAnalyzer:
                 return self._data_cache[cache_key].copy()
             raise
 
+    def _build_ensemble_model(self) -> Pipeline:
+        """构建包含特征工程和分层集成模型的总管道"""
+        feature_pipe = Pipeline([
+            ("features", EnhancedFeatureEngineer()),
+            ("scaler", DynamicQuantileTransformer(n_quantiles=1000))
+        ])
+
+
+        base_models = [
+            ('svm', SVC(
+                        probability=True,
+                        kernel='rbf',
+                        class_weight='balanced',
+                        cache_size=500
+            ))
+        ]
+        # 元学习器
+        meta_model = LogisticRegression(class_weight='balanced', solver='liblinear')
+
+        # 分层集成模型
+        stacking_model = StackingClassifier(
+            estimators=base_models,
+            final_estimator=meta_model,
+            stack_method='predict_proba',
+            passthrough=True,
+            n_jobs=-1  # 启用并行
+        )
+
+        # 总管道：特征工程 + 集成模型
+        model_pipeline = Pipeline([
+            ('feature_pipe', feature_pipe),
+            ('stacking_model', stacking_model)
+        ])
+
+        return model_pipeline
 
     def _calculate_bollinger_band(self, close_series: pd.Series,
                                  window: int = 20,
@@ -461,8 +518,8 @@ class EnhancedMarketAnalyzer:
 
     def _execute_market_query(self) -> pd.DataFrame:
 
-        # 计算5年前的日期（基于当前系统时间）
-        start_date = datetime.datetime.now() - relativedelta(years=5)
+        # 计算3年前的日期（基于当前系统时间）
+        start_date = datetime.datetime.now() - relativedelta(years=3)
         # end_date = datetime.datetime.now() - datetime.timedelta(days=5)
         end_date = datetime.datetime.now()
         start_date_str = start_date.strftime("%Y%m%d")
@@ -512,7 +569,7 @@ class EnhancedMarketAnalyzer:
         # 换手率智能填充
         if df['turnover_rate'].isnull().any():
             # 1. 计算20日移动平均换手率
-            ma_turnover = df['turnover_rate'].rolling(window=20, min_periods=1).mean()
+            ma_turnover = df['turnover_rate'].fillna(0)
             
             # 2. 计算行业平均换手率（如果有行业数据）
             # 这里可以添加行业数据的处理逻辑
@@ -634,7 +691,7 @@ class EnhancedMarketAnalyzer:
             search_spaces = self._get_search_spaces()
 
             # 创建时间序列交叉验证
-            tscv = TimeSeriesSplit(n_splits=cv_splits)
+            tscv = TimeSeriesSplit(n_splits=cv_splits, test_size=30)
 
             # 定义评估指标
             scoring = {
@@ -1025,7 +1082,17 @@ class EnhancedMarketAnalyzer:
         return signals
 
     def _generate_raw_signals(self, df: pd.DataFrame, proba: np.ndarray, predictions: np.ndarray) -> pd.DataFrame:
-        """生成基础交易信号框架"""
+        """
+        生成基础交易信号框架
+
+        参数:
+            df: 市场数据DataFrame
+            proba: 模型预测概率
+            predictions: 模型预测结果
+
+        返回:
+            包含基础信号的DataFrame
+        """
         # 验证必要的列是否存在
         required_columns = ['close', 'low', 'high', 'volume', 'turnover_rate']
         missing_columns = [col for col in required_columns if col not in df.columns]
@@ -1037,19 +1104,6 @@ class EnhancedMarketAnalyzer:
         if df.empty or len(proba) == 0 or len(predictions) == 0:
             logger.warning("生成信号时输入数据为空")
             return pd.DataFrame()
-
-        # 验证换手率数据
-        if df['turnover_rate'].isnull().any():
-            logger.warning("换手率数据存在空值，将使用移动平均填充")
-            # 使用20日移动平均填充
-            ma_turnover = df['turnover_rate'].rolling(window=20, min_periods=1).mean()
-            df['turnover_rate'] = df['turnover_rate'].fillna(ma_turnover)
-            # 如果仍有缺失值，使用前向填充
-            df['turnover_rate'] = df['turnover_rate'].ffill()
-            # 如果仍有缺失值，使用后向填充
-            df['turnover_rate'] = df['turnover_rate'].bfill()
-            # 如果仍有缺失值，使用0填充
-            df['turnover_rate'] = df['turnover_rate'].fillna(0)
 
         # 初始化信号DataFrame
         signals = pd.DataFrame({
@@ -1106,7 +1160,7 @@ class EnhancedMarketAnalyzer:
         turnover_change_ma5 = turnover_change.rolling(5, min_periods=1).mean()
 
         # 计算换手率标准差
-        turnover_std = df['turnover_rate'].rolling(20, min_periods=1).std()
+        turnover_std = df['turnover_rate'].rolling(10, min_periods=1).std()
 
         # 计算换手率相对强度
         turnover_rs = df['turnover_rate'] / turnover_ma20.replace(0, 1e-8)  # 避免除以0
@@ -1117,7 +1171,7 @@ class EnhancedMarketAnalyzer:
         volatility_cond = df['close'].pct_change().rolling(20).std() < 0.03
 
         # 换手率条件
-        turnover_cond1 = df['turnover_rate'] > turnover_ma3  # 当前换手率高于3日均线
+        turnover_cond1 = df['turnover_rate'] > turnover_ma3  # 当前换手率高于5日均线
         turnover_cond2 = turnover_rs > 1  # 换手率相对强度大于1.0
         turnover_cond3 = turnover_change_ma3 > 0  # 换手率变化趋势向上
         turnover_cond4 = df['turnover_rate'] > turnover_std  # 当前换手率高于标准差

@@ -44,3 +44,11 @@ export function getKline(params) {
     }
   })
 }
+
+export function getPredictability(params) {
+  return request({
+    url: '/api/stock/predictability',
+    method: 'post',
+    data: params
+  })
+}
