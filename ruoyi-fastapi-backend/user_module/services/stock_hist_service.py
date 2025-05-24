@@ -88,25 +88,20 @@ class StockHistService:
             raise ValueError("无效的股票代码格式")
 
     @staticmethod
-    def _format_date(date_str: str) -> str:
-        """
-        格式化日期字符串为YYYYMMDD格式
-        """
-        if not date_str:
-            return None
-        # 如果已经是YYYYMMDD格式，直接返回
-        if len(date_str) == 8 and date_str.isdigit():
-            return date_str
-        # 尝试解析其他格式
-        try:
-            date_obj = datetime.strptime(date_str, '%Y%m%d')
-            return date_obj.strftime('%Y%m%d')
-        except ValueError:
+    def _format_date(date_str):
+        """格式化日期字符串为YYYYMMDD格式"""
+        if isinstance(date_str, date):
+            return date_str.strftime('%Y%m%d')
+        elif isinstance(date_str, str):
+            if len(date_str) == 8 and date_str.isdigit():
+                return date_str
             try:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
                 return date_obj.strftime('%Y%m%d')
             except ValueError:
                 raise ValueError(f"无效的日期格式: {date_str}")
+        else:
+            raise ValueError(f"不支持的日期类型: {type(date_str)}")
 
     @staticmethod
     async def get_stock_history(

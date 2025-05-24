@@ -139,3 +139,5 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 ruoyi-fastapi-backend/ai.env
+# SpecStory explanation file
+.specstory/.what-is-this.md

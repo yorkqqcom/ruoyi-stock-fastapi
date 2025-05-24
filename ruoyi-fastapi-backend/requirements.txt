@@ -22,4 +22,6 @@ scikit-optimize
 pandas_market_calendars
 openai
 mcp
+torch
+statsmodels
 
