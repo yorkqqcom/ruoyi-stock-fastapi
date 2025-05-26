@@ -6,7 +6,7 @@ from utils.response_util import ResponseUtil
 from typing import Optional, List  # 新增导入
 import asyncio
 from contextlib import asynccontextmanager
-
+from exceptions.exception import ServiceException
 from user_module.services.stock_hist_service import StockHistService
 import json
 import os
@@ -89,6 +89,7 @@ class HybridAgent:
         ]
 
     async def execute_query(self, question: str, model: str = None, selected_tools: Optional[List[str]] = None):
+        tools = selected_tools or []  # 转换为空列表避免后续处理报错
         model = model or AIConfig.MODEL_NAME
         openai_tools = []
         tool_registry = {}
@@ -351,13 +352,7 @@ async def chat(
             mcp_status=200
         ))
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "response": f"处理失败: {str(e)}",
-                "mcp_status": 500
-            }
-        )
+        raise e
 
 async def call_llm(
         query: str,
@@ -367,20 +362,57 @@ async def call_llm(
         selected_tools: Optional[List[str]] = None  # 新增参数
 ):
     try:
+
         agent = HybridAgent()
         result = await agent.execute_query(
             query,
             model=model,
             selected_tools=selected_tools  # 传递工具参数
         )
+
         return result
-    except httpx.HTTPStatusError as http_err:
-        raise HTTPException(
-            status_code=http_err.response.status_code,
-            detail={"response": "HTTP错误", "mcp_status": 500}
-        )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={"response": str(e), "mcp_status": 500}
-        )
+        error_msg = str(e)
+        print('1111----1111=', error_msg)
+
+        error_data = None
+        try:
+            # 提取错误信息中的JSON部分
+            start = error_msg.find('{')
+            end = error_msg.rfind('}') + 1
+            if start >= 0 and end > start:
+                json_str = error_msg[start:end]
+                # 替换单引号为双引号以确保JSON解析正确
+                json_str = json_str.replace("'", '"')
+                error_data = json.loads(json_str)
+        except json.JSONDecodeError:
+            pass  # JSON解析失败，继续使用字符串匹配
+
+        if error_data:
+            # 获取错误码并转换为小写
+            error_code = error_data.get('error', {}).get('code', '')
+            error_code_lower = error_code.lower()
+
+            if error_code_lower == 'arrearage':
+                raise ServiceException(message="阿里云API账户余额不足，请及时充值")
+            elif error_code_lower == 'quota_exceeded':
+                raise ServiceException(message="阿里云API调用配额已超限，请稍后再试")
+            elif error_code_lower == 'invalid_api_key':
+                raise ServiceException(message="阿里云API密钥无效或已过期")
+            elif error_code_lower == 'timeout':
+                raise ServiceException(message="阿里云API请求超时，请稍后重试")
+            else:
+                raise ServiceException(message=f"系统错误: {error_msg}")
+        else:
+            # 无法解析JSON时使用字符串匹配
+            error_msg_lower = error_msg.lower()
+            if 'arrearage' in error_msg_lower:
+                raise ServiceException(message="阿里云API账户余额不足，请及时充值")
+            elif 'quota_exceeded' in error_msg_lower:
+                raise ServiceException(message="阿里云API调用配额已超限，请稍后再试")
+            elif 'invalid_api_key' in error_msg_lower:
+                raise ServiceException(message="阿里云API密钥无效或已过期")
+            elif 'timeout' in error_msg_lower:
+                raise ServiceException(message="阿里云API请求超时，请稍后重试")
+            else:
+                raise ServiceException(message=f"系统错误: {error_msg}")
