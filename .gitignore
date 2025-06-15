@@ -140,4 +140,5 @@ dmypy.json
 cython_debug/
 ruoyi-fastapi-backend/ai.env
 # SpecStory explanation file
+.specstory/
 .specstory/.what-is-this.md
