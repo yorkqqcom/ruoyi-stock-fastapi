@@ -261,7 +261,9 @@ insert into sys_menu values('1060', '生成代码', '116', '6', '#', '', '', '',
 -- stock菜单生
 insert into sys_menu values('1061', '证券分析', '0', '0', 'stock', NULL, NULL, '', '1', '0', 'M', '0', '0', NULL, 'chart', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1062', '个股分析', '1061', '0', 'analyzer', 'stock/backtest/detail', NULL, '', '1', '0', 'C', '0', '0', 'stock:backtest:list', 'chart', 'admin', sysdate(), '', null, '');
-insert into sys_menu values('1063', '方差比率和自相关发现趋势与反转', '1061', '1', 'predictability', 'stock/predictability/index', NULL, '', '1', '0', 'C', '0', '0', NULL, 'chart', 'admin', '2025-05-24 12:06:21', 'admin', '2025-05-24 17:33:19', '')
+insert into sys_menu values('1063', '方差比率和自相关发现趋势与反转', '1061', '1', 'predictability', 'stock/predictability/index', NULL, '', '1', '0', 'C', '0', '0', NULL, 'chart', 'admin', '2025-05-24 12:06:21', 'admin', '2025-05-24 17:33:19', '');
+insert into sys_menu values('1064', '每日盘点', '0', '1', 'marketreview', 'stock/marketreview/index', NULL, '', '1', '0', 'C', '0', '0', NULL, 'button', 'admin', '2025-05-27 12:52:05', 'admin', '2025-05-27 12:53:23', '');
+insert into sys_menu values('1065', 'LSTM均值回归', '1061', '4', 'ai_market', 'stock/ai-market/index', NULL, '', '1', '0', 'C', '0', '0', NULL, 'chart', 'admin', '2025-05-29 20:35:35', 'admin', '2025-05-29 21:04:35', '');
 
 -- ----------------------------
 -- 6、用户和角色关联表  用户N-1角色

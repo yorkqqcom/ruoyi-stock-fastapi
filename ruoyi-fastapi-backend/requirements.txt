@@ -24,4 +24,5 @@ openai
 mcp
 torch
 statsmodels
-
+tensorflow
+matplotlib

@@ -11,8 +11,9 @@ export function getanalyzer(params) {
 }
 export function getstocklist(params) {
   return request({
-    url: '/api/stock/list',  // 修正为正确的路由
+    url: '/api/stock/list',
     method: 'get',
+    params
   })
 }
 export function getKline(params) {

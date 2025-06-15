@@ -71,6 +71,33 @@ service.interceptors.request.use(config => {
     Promise.reject(error)
 })
 
+// 处理 NaN 值的函数
+function handleNaNValues(obj) {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  if (typeof obj === 'number' && isNaN(obj)) {
+    return null;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => handleNaNValues(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const result = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        result[key] = handleNaNValues(obj[key]);
+      }
+    }
+    return result;
+  }
+  
+  return obj;
+}
+
 // 响应拦截器
 service.interceptors.response.use(res => {
     // 未设置状态码则默认成功状态
@@ -104,6 +131,8 @@ service.interceptors.response.use(res => {
       Notification.error({ title: msg })
       return Promise.reject('error')
     } else {
+      // 处理响应数据中的 NaN 值
+      res.data = handleNaNValues(res.data);
       return res.data
     }
   },

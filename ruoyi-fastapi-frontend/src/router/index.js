@@ -62,15 +62,15 @@ export const constantRoutes = [
     hidden: true
   },
   {
-    path: '',
+    path: '/',
     component: Layout,
-    redirect: 'index',
+    redirect: '/index',
     children: [
       {
-        path: 'index',
+        path: '/index',
         component: () => import('@/views/chat/ChatWindow'),
         name: 'Index',
-        meta: { title: '首页', icon: 'dashboard', affix: true }
+        meta: { title: '首页', icon: 'message', affix: true }
       }
     ]
   },
@@ -78,10 +78,10 @@ export const constantRoutes = [
     path: '/user',
     component: Layout,
     hidden: true,
-    redirect: 'noredirect',
+    redirect: '/noredirect',
     children: [
       {
-        path: 'profile',
+        path: '/profile',
         component: () => import('@/views/system/user/profile/index'),
         name: 'Profile',
         meta: { title: '个人中心', icon: 'user' }
@@ -89,7 +89,6 @@ export const constantRoutes = [
     ]
   }
 ]
-
 // 动态路由，基于用户权限动态去加载
 export const dynamicRoutes = [
   {

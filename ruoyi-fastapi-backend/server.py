@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from config.env import AppConfig
 from config.get_db import init_create_table
 from config.get_redis import RedisUtil
@@ -27,6 +28,9 @@ from module_generator.controller.gen_controller import genController
 from user_module.routers.stock_hist_router import stock_hist_router
 from user_module.routers.ai_router import ai_router
 from user_module.routers.stock_sentiment_router import router as stock_sentiment_router
+from user_module.routers.market_review_router import router as market_review_router
+from user_module.routers.market_sentiment_router import router as market_sentiment_router
+from user_module.routers.ai_market_sentiment_router import router as ai_market_sentiment_router
 
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
@@ -55,6 +59,15 @@ app = FastAPI(
     description=f'{AppConfig.app_name}接口文档',
     version=AppConfig.app_version,
     lifespan=lifespan,
+)
+
+# 配置CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 挂载子应用
@@ -88,6 +101,9 @@ controller_list = [
     {'router': stock_hist_router, 'tags': ['个股历史行情']},
     {'router': ai_router, 'tags': ['AI对话']},
     {'router': stock_sentiment_router, 'tags': ['市场情绪分析']},
+    {'router': market_review_router, 'tags': ['市场复盘']},
+    {'router': market_sentiment_router, 'tags': ['市场情绪分析']},
+    {'router': ai_market_sentiment_router, 'tags': ['AI市场情绪分析']},
 ]
 
 for controller in controller_list:

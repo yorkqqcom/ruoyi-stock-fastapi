@@ -86,9 +86,9 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
         "volume",
         "turnover_rate",
         "change_pct",
-        "rank",  # 新增热度排名
-        "new_fans",  # 新增新晋粉丝
-        "loyal_fans",  # 新增铁杆粉丝
+        # "rank",  # 新增热度排名
+        # "new_fans",  # 新增新晋粉丝
+        # "loyal_fans",  # 新增铁杆粉丝
     ]
 
     def __init__(
@@ -105,9 +105,9 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
             'month',
             'is_month_end',
             'price_volume_div',
-            'rank_change',  # 新增排名变化
-            'fans_growth',  # 新增粉丝增长
-            'fans_ratio',  # 新增粉丝比例
+            # 'rank_change',  # 新增排名变化
+            # 'fans_growth',  # 新增粉丝增长
+            # 'fans_ratio',  # 新增粉丝比例
         ]
         # 配置技术指标参数
         self._init_ta_params()
@@ -687,12 +687,22 @@ class EnhancedMarketAnalyzer:
             # 准备特征矩阵和目标变量
             X, y = self._prepare_training_data(df)
 
-            # 配置贝叶斯搜索空间
-            search_spaces = self._get_search_spaces()
+            # 计算TimeSeriesSplit允许的最大分割数
+            test_size = 30 # TimeSeriesSplit中的test_size
+            max_possible_splits = (len(X) + 1) // (test_size + 1)
+            n_splits_actual = min(cv_splits, max_possible_splits)
+
+            if n_splits_actual <= 0:
+                 logger.error(f"计算得到的有效分割数不足，无法进行交叉验证。样本数: {len(X)}, test_size: {test_size}")
+                 raise ValueError("有效交叉验证分割数不足")
+
+            # 调试日志：打印 TimeSeriesSplit 参数
+            logger.info(f"TimeSeriesSplit 参数：样本数={len(X)}, test_size={test_size}, cv_splits={cv_splits}, 计算得到的 n_splits_actual={n_splits_actual}")
 
             # 创建时间序列交叉验证
-            tscv = TimeSeriesSplit(n_splits=cv_splits, test_size=30)
-
+            tscv = TimeSeriesSplit(n_splits=n_splits_actual, test_size=test_size)
+            # 配置贝叶斯搜索空间
+            search_spaces = self._get_search_spaces()
             # 定义评估指标
             scoring = {
                 'roc_auc': 'roc_auc',
@@ -1171,7 +1181,7 @@ class EnhancedMarketAnalyzer:
         volatility_cond = df['close'].pct_change().rolling(20).std() < 0.03
 
         # 换手率条件
-        turnover_cond1 = df['turnover_rate'] > turnover_ma3  # 当前换手率高于5日均线
+        turnover_cond1 = df['turnover_rate'] > turnover_ma3  # 当前换手率高于3日均线
         turnover_cond2 = turnover_rs > 1  # 换手率相对强度大于1.0
         turnover_cond3 = turnover_change_ma3 > 0  # 换手率变化趋势向上
         turnover_cond4 = df['turnover_rate'] > turnover_std  # 当前换手率高于标准差
@@ -1181,7 +1191,7 @@ class EnhancedMarketAnalyzer:
                 (predictions == 1) &
                 turnover_cond1 &  # 换手率条件1
                 turnover_cond2 &  # 换手率条件2
-                turnover_cond3 &  # 换手率条件3
+                # turnover_cond3 &  # 换手率条件3
                 turnover_cond4  # 换手率条件4
         )  # 模型预测为上涨
         # buy_mask = (

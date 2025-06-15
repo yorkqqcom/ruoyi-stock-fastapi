@@ -40,23 +40,38 @@ FIELD_MAPPING = {
         '涨跌幅': 'change_pct',
         '涨跌额': 'change_amt',
         '换手率': 'turnover_rate'
+    },
+    "stock_fund_flow_individual": {
+        '序号': 'rank',
+        '股票代码': 'symbol',
+        '股票简称': 'name',
+        '最新价': 'price',
+        '涨跌幅': 'change_pct',
+        '换手率': 'turnover_rate',
+        '流入资金': 'inflow',
+        '流出资金': 'outflow',
+        '净额': 'net_amount',
+        '成交额': 'amount'
     }
 }
 class StockHistService:
     @staticmethod
     @lru_cache(maxsize=1)
     def _get_cached_stock_list(cache_key: str) -> pd.DataFrame:
-        df = ak.stock_zh_a_spot_em()
-        df = df.rename(columns=FIELD_MAPPING["stock_zh_a_spot_em"])
-        df = df[['symbol', 'name']]
+        df = ak.stock_fund_flow_individual(symbol="即时")
+        df = df.rename(columns=FIELD_MAPPING["stock_fund_flow_individual"])
+        # 确保股票代码是字符串格式
+        df['symbol'] = df['symbol'].astype(str).str.zfill(6)
         return df
-
 
     @staticmethod
     async def get_stock_list():
         # 使用当前日期作为缓存键
         cache_key = datetime.now().strftime('%Y-%m-%d')
-        return StockHistService._get_cached_stock_list(cache_key)
+        df = StockHistService._get_cached_stock_list(cache_key)
+        # 确保返回的DataFrame中的股票代码是字符串格式
+        df['symbol'] = df['symbol'].astype(str).str.zfill(6)
+        return df
 
     @staticmethod
     async def get_stock_spot_em(cache_key: str) -> pd.DataFrame:

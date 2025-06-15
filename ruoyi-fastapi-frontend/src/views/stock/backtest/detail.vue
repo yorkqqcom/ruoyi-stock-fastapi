@@ -468,14 +468,28 @@ export default {
     },
     // 自动补全逻辑
     async fetchSuggestions(queryString, cb) {
-      // 确保始终有数组可用
-      const source = Array.isArray(this.mockSymbols) ? this.mockSymbols : [];
-      const results = source.filter(item =>
-        item.symbol.includes(queryString) ||
-        item.name.includes(queryString)
-      ).map(item => ({ ...item, value: item.symbol }));
+      try {
+        // 确保始终有数组可用
+        const source = Array.isArray(this.mockSymbols) ? this.mockSymbols : [];
+        const results = source.filter(item => {
+          // 确保 item 是对象且具有必要的属性
+          if (!item || typeof item !== 'object') return false;
+          
+          // 确保 symbol 和 name 都是字符串
+          const symbol = String(item.symbol || '');
+          const name = String(item.name || '');
+          
+          return symbol.includes(queryString) || name.includes(queryString);
+        }).map(item => ({
+          ...item,
+          value: String(item.symbol || '')
+        }));
 
-      cb(results);
+        cb(results);
+      } catch (error) {
+        console.error('股票列表过滤出错:', error);
+        cb([]);
+      }
     },
 
     // 输入处理
@@ -851,11 +865,94 @@ export default {
 </script>
 
 <style scoped>
-
 .app-container {
   background-color: #fff;
   padding: 20px;
   min-height: 100vh;
+}
+
+/* 统一股票代码检索样式 */
+::v-deep .el-autocomplete {
+  width: 200px;
+}
+
+::v-deep .el-autocomplete .el-input__inner {
+  background-color: #fff !important;
+  border-color: #dcdfe6 !important;
+  color: #303133 !important;
+  height: 32px;
+  line-height: 32px;
+  padding: 0 15px;
+  border-radius: 4px;
+  transition: border-color .2s cubic-bezier(.645,.045,.355,1);
+}
+
+::v-deep .el-autocomplete .el-input__inner:focus {
+  border-color: #409EFF !important;
+  outline: none;
+}
+
+.symbol-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.symbol-item:hover {
+  background-color: #f5f7fa;
+}
+
+.symbol-code {
+  color: #409EFF;
+  font-weight: 600;
+  margin-right: 15px;
+  font-size: 14px;
+}
+
+.symbol-name {
+  color: #606266;
+  font-size: 13px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 统一表单样式 */
+::v-deep .el-form-item__label {
+  color: #606266 !important;
+  font-size: 14px;
+  line-height: 32px;
+}
+
+::v-deep .el-form-item {
+  margin-bottom: 18px;
+  margin-right: 20px;
+}
+
+::v-deep .el-form--inline .el-form-item {
+  margin-right: 20px;
+}
+
+/* 统一按钮样式 */
+::v-deep .el-button {
+  padding: 9px 20px;
+  font-size: 14px;
+  border-radius: 4px;
+  transition: all .3s;
+}
+
+::v-deep .el-button--primary {
+  background-color: #409EFF;
+  border-color: #409EFF;
+}
+
+::v-deep .el-button--primary:hover {
+  background-color: #66b1ff;
+  border-color: #66b1ff;
 }
 
 .chart-container {
@@ -864,133 +961,6 @@ export default {
   border: 1px solid #e4e7ed;
   border-radius: 4px;
   margin-top: 20px;
-}
-
-::v-deep .el-form-item__label {
-  color: #606266 !important;
-}
-
-::v-deep .light-input .el-input__inner {
-  background-color: #fff !important;
-  border-color: #dcdfe6 !important;
-  color: #303133 !important;
-}
-
-::v-deep .light-select .el-input__inner {
-  background-color: #fff !important;
-  border-color: #dcdfe6 !important;
-  color: #303133 !important;
-}
-
-::v-deep .light-date-picker .el-range-input {
-  background-color: #fff !important;
-  color: #303133 !important;
-}
-
-::v-deep .light-date-picker .el-range-separator {
-  color: #303133 !important;
-}
-/* 指标卡片容器样式 */
-.analysis-card {
-  margin-top: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  transition: box-shadow 0.3s;
-}
-
-.analysis-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-
-/* 卡片标题样式 */
-.analysis-card ::v-deep .el-card__header {
-  background: linear-gradient(120deg, #f8f9fc 0%, #f1f3f8 100%);
-  border-bottom: 1px solid #e8e8e8;
-}
-
-.analysis-card ::v-deep .el-card__header span {
-  font-size: 16px;
-  font-weight: 600;
-  color: #2c3e50;
-  letter-spacing: 0.5px;
-}
-
-/* 描述列表增强样式 */
-.analysis-card ::v-deep .el-descriptions {
-  margin: 15px 0;
-}
-
-/* 描述项标题样式 */
-.analysis-card ::v-deep .el-descriptions-item__label {
-  background-color: #f8fafc;
-  font-weight: 500;
-  color: #5a6d88 !important;
-  width: 160px;
-  text-align: right;
-}
-
-/* 描述项内容样式 */
-.analysis-card ::v-deep .el-descriptions-item__content {
-  color: #34495e;
-  font-weight: 500;
-  min-width: 100px;
-}
-
-/* 表格边框优化 */
-.analysis-card ::v-deep .el-descriptions--border td {
-  border-color: #eaeef3 !important;
-}
-
-/* 标题分隔线 */
-.analysis-card ::v-deep .el-descriptions__title {
-  position: relative;
-  padding-left: 12px;
-  margin: 20px 0 15px;
-  font-size: 15px;
-  color: #409EFF;
-}
-
-.analysis-card ::v-deep .el-descriptions__title::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 16px;
-  background-color: #409EFF;
-  border-radius: 2px;
-}
-
-/* 响应式调整 */
-@media (max-width: 768px) {
-  .analysis-card ::v-deep .el-descriptions-item {
-    width: 100% !important;
-    margin-bottom: 8px;
-  }
-
-  .analysis-card ::v-deep .el-descriptions-item__label {
-    width: 100px;
-    text-align: left !important;
-  }
-}
-.symbol-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 12px;
-}
-
-.symbol-code {
-  color: #409EFF;
-  font-weight: 600;
-  margin-right: 15px;
-}
-
-.symbol-name {
-  color: #666;
-  font-size: 0.9em;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .loading-alert {

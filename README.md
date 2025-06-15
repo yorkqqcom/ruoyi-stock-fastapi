@@ -29,12 +29,16 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
 ## 演示图
 <table>
     <tr>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-1.png"/></td>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-2.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/ai-answer-2.png"/>输入：工商银行主营业务构成分析</td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-4.png"/>输入：股票代码分析买入点</td>
     </tr>
     <tr>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/chat.png"/></td>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/analysis.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/daily-analysis-1.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/daily-analysis-2.png"/></td>
+    </tr>
+    <tr>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-analysis-1.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-analysis-2.png"/></td>
     </tr>
     <tr>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/predictability.png"/></td>
@@ -42,36 +46,41 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
 </table>
 ## 主要功能
 
-### 1. 股票行情分析
-* 智能分析功能
+### 1. 智能对话功能
+  - 支持自然语言交互
+  - 股票相关问答
+  - 通过mcp服务获取最新股票主营业务及财务信息
+
+### 2.每日AI复盘
+  - 当日指数复盘
+  - AI市场复盘及建议
+  - 资金流向分析
+  - 板块资金流向分析
+  - 涨跌停及龙虎榜
+
+### 3.股票行情分析
+* 个股分析功能
   - 基于历史数据的买卖信号分析
   - 多周期回测指标计算
   - 胜率、收益率等关键指标展示
 
-* 市场预测性分析
+* 方差比率分析
   - 基于方差比率(VR)的市场预测性分析
   - 多周期自相关分析
   - 市场状态识别（动量/均值回归/随机）
 
-### 2. AI 智能助手
-* 股票分析报告
-  - 自动生成个股分析报告
-  - 支持公司基本面分析
-  - 主营业务分析
+* LSTM均值回归
+  - 市场情绪、技术指标分析
+  - 市场走势预测（包含每日预测、分钟级预测）
+  - 均值回归分析
+  - 新闻分析
 
-* 智能对话功能
-  - 支持自然语言交互
-  - 股票相关问答
-  - 技术指标解释
-  - 投资策略建议
-
-### 3. MCP Server 服务
+### 4. MCP Server 服务
 * 数据采集服务
   - 基于 AKShare 的实时数据采集
   - 支持 A 股数据
   - 自动数据更新和同步
   - 数据格式标准化处理
-
 
 * 用户配置管理
   - 个性化设置保存
