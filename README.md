@@ -33,15 +33,15 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分�
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-4.png"/>输入：股票代码分析买入点</td>
     </tr>
     <tr>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/daily-analysis-1.png"/></td>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/daily-analysis-2.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/daily-analysis-1.png"/>每日盘点-1</td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/daily-analysis-2.png"/>每日盘点-2</td>
     </tr>
     <tr>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-analysis-1.png"/></td>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-analysis-2.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-analysis-1.png"/>LSTM走势预测-1</td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-analysis-2.png"/>LSTM走势预测-2</td>
     </tr>
     <tr>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/predictability.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/predictability.png"/>自相关特征分析</td>
     </tr>
 </table>
 ## 主要功能
