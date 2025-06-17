@@ -1596,22 +1596,91 @@ class AIMarketSentimentService:
             if last_price < 0.0001:
                 last_price = 0.0001
 
-            # 修改部分：使用上一个预测值或最后一个实际价格
+            # 在预测未来价格之前添加历史收益率分析
+            mean_return = 0
+            std_return = 0
+            min_return = 0
+            max_return = 0
+            try:
+                # 计算历史实际收益率的统计指标
+                actual_returns = df['close'].pct_change().dropna().values
+                if len(actual_returns) > 0:
+                    mean_return = np.mean(actual_returns)
+                    std_return = np.std(actual_returns)
+                    min_return = np.min(actual_returns)
+                    max_return = np.max(actual_returns)
+
+                    # 使用1%和99%分位数作为安全边界
+                    q1 = np.percentile(actual_returns, 1)
+                    q99 = np.percentile(actual_returns, 99)
+                else:
+                    # 默认安全边界（当历史数据不足时）
+                    mean_return, std_return, min_return, max_return = 0, 0.01, -0.05, 0.05
+                    q1, q99 = -0.03, 0.03
+
+                print(f"历史收益率统计: 均值={mean_return:.6f}, 标准差={std_return:.6f}")
+                print(f"历史收益率范围: [{min_return:.6f}, {max_return:.6f}]")
+                print(f"使用安全边界: [{q1:.6f}, {q99:.6f}]")
+
+            except Exception as e:
+                print(f"计算历史收益率统计失败: {str(e)}")
+                # 设置保守的默认边界
+                q1, q99 = -0.03, 0.03
+
+            # 修改未来价格预测部分
             future_price_predictions = []
             previous_price = last_price
+            cumulative_factor = 1.0  # 累积变化因子
+            smoothing_factor = 0.7  # 平滑因子（新预测值权重）
 
             for i, prediction in enumerate(future_predictions):
-                if i == 0:
-                    # 第一个预测点，使用最后一个实际价格作为基准
-                    predicted_price = last_price * (1 + prediction)
-                else:
-                    # 后续预测点，使用上一个预测价格作为基准
-                    predicted_price = future_price_predictions[-1] * (1 + prediction)
+                try:
+                    # 应用安全边界限制
+                    clipped_prediction = np.clip(prediction, q1, q99)
 
-                if predicted_price < 0.0001:
-                    predicted_price = 0.0001
+                    # 计算平均变化率平滑后的收益率
+                    if i == 0:
+                        smoothed_return = clipped_prediction
+                    else:
+                        # 结合历史平均变化率进行平滑
+                        smoothed_return = (smoothing_factor * clipped_prediction +
+                                           (1 - smoothing_factor) * mean_return)
 
-                future_price_predictions.append(predicted_price)
+                    # 计算理论价格变化
+                    theoretical_price = previous_price * (1 + smoothed_return)
+
+                    # 应用边界保护（防止价格突破历史波动范围）
+                    price_change = theoretical_price - previous_price
+                    max_allowed_change = previous_price * max_return
+                    min_allowed_change = previous_price * min_return
+
+                    bounded_change = np.clip(
+                        price_change,
+                        min_allowed_change,
+                        max_allowed_change
+                    )
+
+                    predicted_price = previous_price + bounded_change
+
+                    # 绝对价格保护（防止负价格）
+                    predicted_price = max(predicted_price, 0.0001)
+
+                    # 更新追踪变量
+                    future_price_predictions.append(predicted_price)
+                    previous_price = predicted_price
+                    cumulative_factor *= (1 + smoothed_return)
+
+                    print(f"预测步 {i + 1}: 原始收益={prediction:.6f}, "
+                          f"截断后={clipped_prediction:.6f}, "
+                          f"平滑后={smoothed_return:.6f}, "
+                          f"最终价格={predicted_price:.6f}")
+
+                except Exception as e:
+                    print(f"第 {i + 1} 步预测异常: {str(e)}")
+                    # 异常时使用保守预测
+                    predicted_price = previous_price * (1 + mean_return)
+                    future_price_predictions.append(max(predicted_price, 0.0001))
+                    previous_price = predicted_price
 
             future_price_predictions = np.array(future_price_predictions)
             print('last_price', future_price_predictions, future_predictions, last_price)
