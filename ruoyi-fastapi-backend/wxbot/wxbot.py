@@ -1,12 +1,19 @@
 from wxpy import *
 import time
 from threading import Thread
-from user_module.services.stock_hist_service import StockHistService
+
 from trade_records import TradeHistory
 from datetime import datetime, time as dt_time, timedelta
 import pytz
 import pandas_market_calendars as mcal
 import signal
+import sys
+from pathlib import Path
+
+# 获取当前文件的父目录的父目录（即项目根目录）
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.append(str(BASE_DIR))  # 添加项目根目录到模块搜索路径
+from user_module.services.stock_hist_service import StockHistService
 
 # 初始化微信机器人
 bot = Bot()
@@ -73,9 +80,10 @@ def format_timestamp(timestamp):
         return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
     return timestamp
 
+friend = bot.friends().search('ruoyi-stock-bot')[0]
 
-# 处理消息并记录交易
-@bot.register()
+# 处理消息并记录交易·
+@bot.register(friend,msg_types=TEXT)
 def handle_message(msg):
     if msg.type == TEXT:
         # 处理交易指令
@@ -132,6 +140,18 @@ def handle_message(msg):
             except Exception as e:
                 msg.reply(f"处理交易失败：{str(e)}")
             return
+
+        if msg.text.startswith("技术分析"):
+            parts = msg.text.split()
+            if len(parts) == 2:
+                symbol = parts[1]
+                from indicator_advisor import stock_advisor
+                # 动态获取最近3年日期区间
+                end_date = datetime.now().strftime('%Y%m%d')
+                start_date = (datetime.now() - timedelta(days=3*365)).strftime('%Y%m%d')
+                result = stock_advisor(symbol, start_date, end_date)
+                msg.reply(result)
+                return
 
         # 处理查询指令
         if msg.text.startswith("查询"):
@@ -214,7 +234,8 @@ def handle_message(msg):
                   "买入 股票代码 价格 数量\n"
                   "卖出 股票代码 价格 数量\n"
                   "查询 [股票代码] - 查询当前持仓\n"
-                  "历史 [股票代码] - 查询历史交易")
+                  "历史 [股票代码] - 查询历史交易\n"
+                  "技术分析 [股票代码] - 对个股技术指标进行分析\n")
 
 
 # 定时检查行情
