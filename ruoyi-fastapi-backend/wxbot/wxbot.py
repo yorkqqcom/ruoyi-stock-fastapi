@@ -10,6 +10,8 @@ import signal
 import sys
 from pathlib import Path
 
+from ai_qa import ai_qa_handler
+
 # 获取当前文件的父目录的父目录（即项目根目录）
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))  # 添加项目根目录到模块搜索路径
@@ -24,6 +26,13 @@ trade_history = TradeHistory()
 # 存储已提醒的记录，防止重复提醒
 reminded_records = set()
 
+# 多好友备注名配置
+FRIEND_NAMES = ['ruoyi-stock-bot', '徐']
+friends_list = []
+for name in FRIEND_NAMES:
+    found = bot.friends().search(name)
+    if found:
+        friends_list.append(found[0])
 
 # 获取A股交易日历
 def get_trading_calendar():
@@ -80,10 +89,9 @@ def format_timestamp(timestamp):
         return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
     return timestamp
 
-friend = bot.friends().search('ruoyi-stock-bot')[0]
 
-# 处理消息并记录交易·
-@bot.register(friend,msg_types=TEXT)
+# 处理消息并记录交易
+@bot.register(friends_list, msg_types=TEXT)
 def handle_message(msg):
     if msg.type == TEXT:
         # 处理交易指令
@@ -97,6 +105,7 @@ def handle_message(msg):
                 return
 
             trade_type, symbol, price, shares = trade_result
+            sender_id = msg.sender.raw.get('UserName') if hasattr(msg.sender, 'raw') else msg.sender.name
             try:
                 df = StockHistService.get_stock_spot_em()
                 stock_info = df[df['symbol'] == symbol]
@@ -107,7 +116,8 @@ def handle_message(msg):
                             name=stock_info.iloc[0]['name'],
                             buy_price=price,
                             shares=shares,
-                            buy_time=msg.create_time
+                            buy_time=msg.create_time,
+                            sender_id=sender_id
                         )
                         msg.reply(f"已记录买入：{stock_info.iloc[0]['name']}({symbol})\n"
                                   f"价格：{price} 数量：{shares}股")
@@ -150,7 +160,7 @@ def handle_message(msg):
                 end_date = datetime.now().strftime('%Y%m%d')
                 start_date = (datetime.now() - timedelta(days=3*365)).strftime('%Y%m%d')
                 result = stock_advisor(symbol, start_date, end_date)
-                msg.reply(result)
+                msg.reply(ai_qa_handler(result))
                 return
 
         # 处理查询指令
@@ -260,11 +270,18 @@ def check_stock_profit():
                         reminder_key = f"{record.symbol}_{record.buy_time}_{int(profit_pct)}"
                         if reminder_key not in reminded_records:
                             profit = (current_price - record.buy_price) * record.shares
-                            bot.friends().search(record.name)[0].send(
-                                f"【盈利提醒】{record.name}({record.symbol})\n"
-                                f"当前涨幅：{profit_pct:.2f}%\n"
-                                f"实现盈利：{profit:.2f}元"
-                            )
+                            # 通过 sender_id 找到好友
+                            target_friend = None
+                            for friend in friends_list:
+                                if (hasattr(friend, 'raw') and friend.raw.get('UserName') == record.sender_id) or friend.name == record.sender_id:
+                                    target_friend = friend
+                                    break
+                            if target_friend:
+                                target_friend.send(
+                                    f"【盈利提醒】{record.name}({record.symbol})\n"
+                                    f"当前涨幅：{profit_pct:.2f}%\n"
+                                    f"实现盈利：{profit:.2f}元"
+                                )
                             reminded_records.add(reminder_key)
                             # 如果提醒记录过多，清理旧的记录
                             if len(reminded_records) > 1000:

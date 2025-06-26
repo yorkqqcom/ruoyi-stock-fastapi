@@ -11,8 +11,34 @@ class TradeRecord:
     buy_price: float
     shares: int
     buy_time: float
+    sender_id: str
     sell_price: Optional[float] = None
     sell_time: Optional[float] = None
+
+    def to_dict(self):
+        return {
+            'symbol': self.symbol,
+            'name': self.name,
+            'buy_price': self.buy_price,
+            'shares': self.shares,
+            'buy_time': self.buy_time,
+            'sender_id': self.sender_id,
+            'sell_price': self.sell_price,
+            'sell_time': self.sell_time
+        }
+
+    @staticmethod
+    def from_dict(data):
+        return TradeRecord(
+            symbol=data['symbol'],
+            name=data['name'],
+            buy_price=data['buy_price'],
+            shares=data['shares'],
+            buy_time=data['buy_time'],
+            sender_id=data.get('sender_id', ''),
+            sell_price=data.get('sell_price'),
+            sell_time=data.get('sell_time')
+        )
 
 class TradeHistory:
     def __init__(self, file_path='trade_history.json'):
@@ -36,14 +62,15 @@ class TradeHistory:
         except Exception as e:
             print(f"保存交易记录失败: {str(e)}")
 
-    def add_buy_record(self, symbol: str, name: str, buy_price: float, shares: int, buy_time: float) -> TradeRecord:
+    def add_buy_record(self, symbol: str, name: str, buy_price: float, shares: int, buy_time: float, sender_id: str) -> TradeRecord:
         """添加买入记录"""
         record = TradeRecord(
             symbol=symbol,
             name=name,
             buy_price=buy_price,
             shares=shares,
-            buy_time=buy_time
+            buy_time=buy_time,
+            sender_id=sender_id
         )
         self.records.append(record)
         self._save_records()
