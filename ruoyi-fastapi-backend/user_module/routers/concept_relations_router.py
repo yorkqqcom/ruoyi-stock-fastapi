@@ -1,6 +1,6 @@
-from fastapi import APIRouter
-from user_module.services.concept_relations_service import get_concept_model
-import akshare as ak
+from fastapi import APIRouter, Request
+from user_module.services.concept_relations_service import get_concept_model, get_concept_correlation_by_name, get_concept_name, get_concept_model_by_name
+
 
 from utils.response_util import ResponseUtil
 
@@ -12,14 +12,17 @@ def list_concept_relations(min_overlap: float = 0.4, max_overlap: float = 1.0):
     return ResponseUtil.success(data=model)
 
 @router.get("/boardlist")
-def get_concept_boardlist():
-    df = ak.stock_board_concept_name_em()
-    return {
-        "data": [
-            {
-                "name": row["板块名称"],
-                "code": row["板块代码"]
-            }
-            for _, row in df.iterrows()
-        ]
-    } 
+async def get_concept_boardlist(request: Request):
+    redis = request.app.state.redis
+    model = await get_concept_name(redis)
+    return ResponseUtil.success(data=model)
+
+@router.get("/correlation")
+def get_concept_correlation_api(concept_name: str):
+    data = get_concept_correlation_by_name(concept_name)
+    return ResponseUtil.success(data={"data": data})
+
+@router.get("/model_by_name")
+def get_concept_model_by_name_api(concept_name: str, min_overlap: float = 0.4, max_overlap: float = 1.0):
+    data = get_concept_model_by_name(concept_name, min_overlap, max_overlap)
+    return ResponseUtil.success(data=data)

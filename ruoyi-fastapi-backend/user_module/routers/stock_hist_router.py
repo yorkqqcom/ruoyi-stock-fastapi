@@ -7,7 +7,9 @@ from fastapi.params import Body
 
 from user_module.analyzer.enhanced_analysis_svm_time import EnhancedMarketAnalyzer
 from user_module.services.stock_hist_service import StockHistService
+from user_module.services.ede_cache_service import get_cache_service
 from utils.response_util import ResponseUtil
+from utils.log_util import logger
 
 
 
@@ -30,13 +32,33 @@ async def get_kline_data(
     )
     return ResponseUtil.success(data=results.to_dict(orient="records"))  # 转换DataFrame为字典列表
 
-@stock_hist_router.get("/list", response_model=dict)  # 修改路由为/kline
+@stock_hist_router.get("/list", response_model=dict)
 async def get_stock_list():
     """
-    获取K线图数据
+    获取股票列表数据（带缓存优化）
     """
-    results = await StockHistService.get_stock_list()
-    return ResponseUtil.success(data=results.to_dict(orient="records"))  # 转换DataFrame为字典列表
+    try:
+        # 获取缓存服务实例
+        cache_service = await get_cache_service()
+        
+        # 尝试从缓存获取
+        cached_data = await cache_service.get_cached_stock_list()
+        if cached_data is not None:
+            logger.info("使用缓存的股票列表数据")
+            return ResponseUtil.success(data=cached_data)
+        
+        # 从服务获取数据
+        results = await StockHistService.get_stock_list()
+        data = results.to_dict(orient="records")
+        
+        # 缓存数据
+        await cache_service.cache_stock_list(data)
+        logger.info("股票列表数据已缓存")
+        
+        return ResponseUtil.success(data=data)
+    except Exception as e:
+        logger.error(f"获取股票列表失败: {e}")
+        return ResponseUtil.error(msg=f"获取股票列表失败: {str(e)}")
 
 
 @stock_hist_router.post("/analyze")

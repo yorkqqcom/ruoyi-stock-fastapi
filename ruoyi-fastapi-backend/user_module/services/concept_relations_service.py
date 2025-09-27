@@ -2,6 +2,9 @@
 import pandas as pd
 import os
 from collections import defaultdict
+import akshare as ak
+from utils.cache_util import build_cache_key, cache_get
+
 
 def build_parent_child_model_from_excel(file_path, min_overlap=0.4, max_overlap=1.0):
     """
@@ -85,4 +88,68 @@ def get_concept_model(min_overlap=0.4, max_overlap=1.0):
     excel_path = os.path.join(base_dir, '../analyzer/concept_parent_child_relations.xlsx')
     return build_parent_child_model_from_excel(excel_path, min_overlap, max_overlap)
 
-# 其他分析、可视化等函数可根据需要添加 
+def get_concept_model_by_name(concept_name, min_overlap=0.4, max_overlap=1.0):
+    """
+    根据概念名称获取其父子关系（只返回与该名称相关的节点和关系）
+    """
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    excel_path = os.path.join(base_dir, '../analyzer/concept_parent_child_relations.xlsx')
+    model = build_parent_child_model_from_excel(excel_path, min_overlap, max_overlap)
+    # 找到名称对应的 code
+    name_to_code = {v['name']: k for k, v in model['node_info'].items()}
+    if concept_name not in name_to_code:
+        return {}
+    code = name_to_code[concept_name]
+    # 只保留相关节点和关系
+    node_info = {code: model['node_info'][code]}
+    parent_to_children = {}
+    child_to_parents = {}
+    # 直接子节点
+    if code in model['parent_to_children']:
+        parent_to_children[code] = model['parent_to_children'][code]
+        for c in model['parent_to_children'][code]:
+            node_info[c['child']] = model['node_info'][c['child']]
+    # 直接父节点
+    if code in model['child_to_parents']:
+        child_to_parents[code] = model['child_to_parents'][code]
+        for p in model['child_to_parents'][code]:
+            node_info[p['parent']] = model['node_info'][p['parent']]
+    return {
+        'node_info': node_info,
+        'parent_to_children': parent_to_children,
+        'child_to_parents': child_to_parents,
+        'root_nodes': [code] if code in model['root_nodes'] else [],
+        'min_overlap': min_overlap,
+        'max_overlap': max_overlap
+    }
+
+def get_concept_correlation_by_name(concept_name):
+    """
+    读取 concept_correlation_analysis.xlsx，返回与 concept_name 相关的相关性数据
+    """
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    excel_path = os.path.join(base_dir, '../analyzer/concept_correlation_analysis.xlsx')
+    df = pd.read_excel(excel_path)
+    # 只保留 concept1 或 concept2 为 concept_name 的行
+    filtered = df[(df['concept1'] == concept_name) | (df['concept2'] == concept_name)].copy()
+    result = filtered.to_dict(orient='records')
+    print('concept_name=', concept_name, 'result=', result)
+    return result
+
+
+async def get_concept_name(redis):
+    key = build_cache_key("concept_relations", "get_concept_name")
+    expire = 300
+    async def fetch_data():
+        df = ak.stock_board_concept_name_em()
+        data = {
+            "data": [
+                {
+                    "name": row["板块名称"],
+                    "code": row["板块代码"]
+                }
+                for _, row in df.iterrows()
+            ]
+        }
+        return data
+    return await cache_get(redis, key, fetch_data, expire)

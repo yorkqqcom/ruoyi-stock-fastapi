@@ -3,15 +3,9 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
-import redis
 import json
 import hashlib
-
-# Redis配置
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379
-REDIS_DB = 0
-REDIS_PASSWORD = None
+from utils.cache_util import build_cache_key, cache_get
 
 # 缓存过期时间（秒）
 CACHE_EXPIRE = {
@@ -28,19 +22,6 @@ CACHE_EXPIRE = {
     'market_analysis': 300,  # 5分钟
 }
 
-# 初始化Redis连接
-try:
-    redis_client = redis.Redis(
-        host=REDIS_HOST,
-        port=REDIS_PORT,
-        db=REDIS_DB,
-        password=REDIS_PASSWORD,
-        decode_responses=True
-    )
-except Exception as e:
-    print(f"Redis连接失败: {str(e)}")
-    redis_client = None
-
 class MarketReviewService:
     @staticmethod
     def _get_cache_key(method_name: str, *args, **kwargs) -> str:
@@ -53,15 +34,15 @@ class MarketReviewService:
         return f"market_review:{method_name}:{hashlib.md5(args_str.encode()).hexdigest()}"
 
     @staticmethod
-    def _get_cache(method_name: str, *args, **kwargs) -> Dict:
+    async def _get_cache(redis, method_name: str, *args, **kwargs) -> Dict:
         """
         从缓存获取数据
         """
-        if redis_client is None:
+        if redis is None:
             return None
             
         cache_key = MarketReviewService._get_cache_key(method_name, *args, **kwargs)
-        cached_data = redis_client.get(cache_key)
+        cached_data = await redis.get(cache_key)
         
         if cached_data:
             try:
@@ -71,18 +52,18 @@ class MarketReviewService:
         return None
 
     @staticmethod
-    def _set_cache(method_name: str, data: Dict, *args, **kwargs) -> None:
+    async def _set_cache(redis, method_name: str, data: Dict, *args, **kwargs) -> None:
         """
         设置缓存数据
         """
-        if redis_client is None:
+        if redis is None:
             return
             
         cache_key = MarketReviewService._get_cache_key(method_name, *args, **kwargs)
         expire_time = CACHE_EXPIRE.get(method_name, 300)  # 默认5分钟
         
         try:
-            redis_client.setex(
+            await redis.setex(
                 cache_key,
                 expire_time,
                 json.dumps(data)
@@ -122,115 +103,91 @@ class MarketReviewService:
         return result
 
     @staticmethod
-    async def get_index_data(symbols: List[str] = None) -> Dict:
+    async def get_index_data(redis, symbols: List[str] = None) -> Dict:
         """
         获取大盘指数数据
         """
-        # 尝试从缓存获取数据
-        cached_data = MarketReviewService._get_cache('index_data', symbols)
-        if cached_data is not None:
-            return cached_data
-
         if symbols is None:
             symbols = ["sh000001", "sz399001", "sz399006"]  # 上证指数、深证成指、创业板指
-            
-        result = []
-        try:
-            # 获取上证指数数据
-            df_sh = ak.stock_zh_index_daily_em(symbol="sh000001")
-            if not df_sh.empty:
-                # 计算技术指标
-                df_sh['MA5'] = df_sh['close'].rolling(window=5).mean()
-                df_sh['MA10'] = df_sh['close'].rolling(window=10).mean()
-                df_sh['MA20'] = df_sh['close'].rolling(window=20).mean()
-                
-                # 获取最新数据
-                latest_sh = df_sh.iloc[-1]
-                result.append({
-                    'name': '上证指数',
-                    'date': latest_sh['date'],
-                    'value': float(latest_sh['close']),
-                    'change': float((latest_sh['close'] - df_sh.iloc[-2]['close']) / df_sh.iloc[-2]['close'] * 100),
-                    'volume': int(latest_sh['volume']),
-                    'amount': float(latest_sh['amount']),
-                    'ma5': float(latest_sh['MA5']),
-                    'ma10': float(latest_sh['MA10']),
-                    'ma20': float(latest_sh['MA20'])
-                })
-
-            # 获取深证成指数据
-            df_sz = ak.stock_zh_index_daily_em(symbol="sz399001")
-            if not df_sz.empty:
-                # 计算技术指标
-                df_sz['MA5'] = df_sz['close'].rolling(window=5).mean()
-                df_sz['MA10'] = df_sz['close'].rolling(window=10).mean()
-                df_sz['MA20'] = df_sz['close'].rolling(window=20).mean()
-                
-                # 获取最新数据
-                latest_sz = df_sz.iloc[-1]
-                result.append({
-                    'name': '深证成指',
-                    'date': latest_sz['date'],
-                    'value': float(latest_sz['close']),
-                    'change': float((latest_sz['close'] - df_sz.iloc[-2]['close']) / df_sz.iloc[-2]['close'] * 100),
-                    'volume': int(latest_sz['volume']),
-                    'amount': float(latest_sz['amount']),
-                    'ma5': float(latest_sz['MA5']),
-                    'ma10': float(latest_sz['MA10']),
-                    'ma20': float(latest_sz['MA20'])
-                })
-
-            # 获取创业板指数据
-            df_cyb = ak.stock_zh_index_daily_em(symbol="sz399006")
-            if not df_cyb.empty:
-                # 计算技术指标
-                df_cyb['MA5'] = df_cyb['close'].rolling(window=5).mean()
-                df_cyb['MA10'] = df_cyb['close'].rolling(window=10).mean()
-                df_cyb['MA20'] = df_cyb['close'].rolling(window=20).mean()
-                
-                # 获取最新数据
-                latest_cyb = df_cyb.iloc[-1]
-                result.append({
-                    'name': '创业板指',
-                    'date': latest_cyb['date'],
-                    'value': float(latest_cyb['close']),
-                    'change': float((latest_cyb['close'] - df_cyb.iloc[-2]['close']) / df_cyb.iloc[-2]['close'] * 100),
-                    'volume': int(latest_cyb['volume']),
-                    'amount': float(latest_cyb['amount']),
-                    'ma5': float(latest_cyb['MA5']),
-                    'ma10': float(latest_cyb['MA10']),
-                    'ma20': float(latest_cyb['MA20'])
-                })
-
-            # 准备图表数据
-            chart_data = {
-                'dates': df_sh['date'].tolist()[-750:],  # 最近3年交易日（约750个交易日）
-                'shValue': df_sh['close'].tolist()[-750:],
-                'szValue': df_sz['close'].tolist()[-750:],
-                'cybValue': df_cyb['close'].tolist()[-750:]
-            }
-
-            response_data = {
-                'cards': result,
-                'chart': chart_data
-            }
-            
-            # 设置缓存
-            MarketReviewService._set_cache('index_data', response_data, symbols)
-            
-            return response_data
-                
-        except Exception as e:
-            print(f"获取指数数据失败: {str(e)}")
-            return {'cards': [], 'chart': {'dates': [], 'shValue': [], 'szValue': [], 'cybValue': []}}
+        key = build_cache_key("market_review", "index_data", symbols)
+        expire = 300
+        async def fetch_data():
+            result = []
+            try:
+                df_sh = ak.stock_zh_index_daily_em(symbol="sh000001")
+                if not df_sh.empty:
+                    df_sh['MA5'] = df_sh['close'].rolling(window=5).mean()
+                    df_sh['MA10'] = df_sh['close'].rolling(window=10).mean()
+                    df_sh['MA20'] = df_sh['close'].rolling(window=20).mean()
+                    latest_sh = df_sh.iloc[-1]
+                    result.append({
+                        'name': '上证指数',
+                        'date': latest_sh['date'],
+                        'value': float(latest_sh['close']),
+                        'change': float((latest_sh['close'] - df_sh.iloc[-2]['close']) / df_sh.iloc[-2]['close'] * 100),
+                        'volume': int(latest_sh['volume']),
+                        'amount': float(latest_sh['amount']),
+                        'ma5': float(latest_sh['MA5']),
+                        'ma10': float(latest_sh['MA10']),
+                        'ma20': float(latest_sh['MA20'])
+                    })
+                df_sz = ak.stock_zh_index_daily_em(symbol="sz399001")
+                if not df_sz.empty:
+                    df_sz['MA5'] = df_sz['close'].rolling(window=5).mean()
+                    df_sz['MA10'] = df_sz['close'].rolling(window=10).mean()
+                    df_sz['MA20'] = df_sz['close'].rolling(window=20).mean()
+                    latest_sz = df_sz.iloc[-1]
+                    result.append({
+                        'name': '深证成指',
+                        'date': latest_sz['date'],
+                        'value': float(latest_sz['close']),
+                        'change': float((latest_sz['close'] - df_sz.iloc[-2]['close']) / df_sz.iloc[-2]['close'] * 100),
+                        'volume': int(latest_sz['volume']),
+                        'amount': float(latest_sz['amount']),
+                        'ma5': float(latest_sz['MA5']),
+                        'ma10': float(latest_sz['MA10']),
+                        'ma20': float(latest_sz['MA20'])
+                    })
+                df_cyb = ak.stock_zh_index_daily_em(symbol="sz399006")
+                if not df_cyb.empty:
+                    df_cyb['MA5'] = df_cyb['close'].rolling(window=5).mean()
+                    df_cyb['MA10'] = df_cyb['close'].rolling(window=10).mean()
+                    df_cyb['MA20'] = df_cyb['close'].rolling(window=20).mean()
+                    latest_cyb = df_cyb.iloc[-1]
+                    result.append({
+                        'name': '创业板指',
+                        'date': latest_cyb['date'],
+                        'value': float(latest_cyb['close']),
+                        'change': float((latest_cyb['close'] - df_cyb.iloc[-2]['close']) / df_cyb.iloc[-2]['close'] * 100),
+                        'volume': int(latest_cyb['volume']),
+                        'amount': float(latest_cyb['amount']),
+                        'ma5': float(latest_cyb['MA5']),
+                        'ma10': float(latest_cyb['MA10']),
+                        'ma20': float(latest_cyb['MA20'])
+                    })
+                chart_data = {
+                    'dates': df_sh['date'].tolist()[-750:],
+                    'shValue': df_sh['close'].tolist()[-750:],
+                    'szValue': df_sz['close'].tolist()[-750:],
+                    'cybValue': df_cyb['close'].tolist()[-750:]
+                }
+                response_data = {
+                    'cards': result,
+                    'chart': chart_data
+                }
+                return response_data
+            except Exception as e:
+                print(f"获取指数数据失败: {str(e)}")
+                return {'cards': [], 'chart': {'dates': [], 'shValue': [], 'szValue': [], 'cybValue': []}}
+        return await cache_get(redis, key, fetch_data, expire)
 
     @staticmethod
-    async def get_market_sentiment() -> Dict:
+    async def get_market_sentiment(redis) -> Dict:
         """
         获取市场情绪数据
         """
         # 尝试从缓存获取数据
-        cached_data = MarketReviewService._get_cache('market_sentiment')
+        cached_data = await MarketReviewService._get_cache(redis, 'market_sentiment')
         if cached_data is not None:
             return cached_data
 
@@ -266,7 +223,7 @@ class MarketReviewService:
             processed_result = MarketReviewService._process_dict(result)
             
             # 设置缓存
-            MarketReviewService._set_cache('market_sentiment', processed_result)
+            await MarketReviewService._set_cache(redis, 'market_sentiment', processed_result)
             
             return processed_result
         except Exception as e:
@@ -279,12 +236,12 @@ class MarketReviewService:
             }
 
     @staticmethod
-    async def get_market_fund_flow() -> Dict:
+    async def get_market_fund_flow(redis) -> Dict:
         """
         获取大盘资金流向数据
         """
         # 尝试从缓存获取数据
-        cached_data = MarketReviewService._get_cache('market_fund_flow')
+        cached_data = await MarketReviewService._get_cache(redis, 'market_fund_flow')
         if cached_data is not None:
             return cached_data
 
@@ -418,7 +375,7 @@ class MarketReviewService:
                     }
                     
                     # 设置缓存
-                    MarketReviewService._set_cache('market_fund_flow', response_data)
+                    await MarketReviewService._set_cache(redis, 'market_fund_flow', response_data)
                     
                     return response_data
             return {
@@ -473,7 +430,7 @@ class MarketReviewService:
             }
 
     @staticmethod
-    async def get_north_money_flow() -> Dict:
+    async def get_north_money_flow(redis) -> Dict:
         """
         获取北向资金流向数据
         """
@@ -569,16 +526,16 @@ class MarketReviewService:
             }
 
     @staticmethod
-    async def get_daily_review() -> Dict:
+    async def get_daily_review(redis) -> Dict:
         """
         获取每日复盘数据
         """
         try:
             # 并行获取各类数据
-            index_data = await MarketReviewService.get_index_data()
-            sentiment_data = await MarketReviewService.get_market_sentiment()
-            north_money = await MarketReviewService.get_north_money_flow()
-            fund_flow = await MarketReviewService.get_market_fund_flow()
+            index_data = await MarketReviewService.get_index_data(redis)
+            sentiment_data = await MarketReviewService.get_market_sentiment(redis)
+            north_money = await MarketReviewService.get_north_money_flow(redis)
+            fund_flow = await MarketReviewService.get_market_fund_flow(redis)
             
             result = {
                 'index_data': index_data,
@@ -593,7 +550,7 @@ class MarketReviewService:
             return {}
 
     @staticmethod
-    async def get_index_min_data(symbol: str = "000001", period: str = "1") -> Dict:
+    async def get_index_min_data(redis, symbol: str = "000001", period: str = "1") -> Dict:
         """
         获取指数分时行情数据
         :param symbol: 指数代码，如"000001"表示上证指数
@@ -711,7 +668,7 @@ class MarketReviewService:
             }
 
     @staticmethod
-    async def get_concept_board_data() -> Dict:
+    async def get_concept_board_data(redis) -> Dict:
         """
         获取概念板块数据
         """
@@ -750,7 +707,7 @@ class MarketReviewService:
             }
 
     @staticmethod
-    async def get_sector_fund_flow() -> Dict:
+    async def get_sector_fund_flow(redis) -> Dict:
         """
         获取板块资金流向数据
         """
@@ -831,7 +788,7 @@ class MarketReviewService:
             }
 
     @staticmethod
-    async def get_limit_up_down_stocks() -> Dict:
+    async def get_limit_up_down_stocks(redis) -> Dict:
         """
         获取涨停跌停股票数据
         """
@@ -873,7 +830,7 @@ class MarketReviewService:
             }
 
     @staticmethod
-    async def get_lhb_data() -> Dict:
+    async def get_lhb_data(redis) -> Dict:
         """
         获取龙虎榜数据
         """
@@ -988,16 +945,16 @@ class MarketReviewService:
             }
 
     @staticmethod
-    async def get_market_analysis() -> Dict:
+    async def get_market_analysis(redis) -> Dict:
         """
         获取市场分析数据（整合所有数据）
         """
         try:
             # 并行获取各类数据
-            concept_data = await MarketReviewService.get_concept_board_data()
-            fund_flow_data = await MarketReviewService.get_sector_fund_flow()
-            limit_stocks_data = await MarketReviewService.get_limit_up_down_stocks()
-            lhb_data = await MarketReviewService.get_lhb_data()
+            concept_data = await MarketReviewService.get_concept_board_data(redis)
+            fund_flow_data = await MarketReviewService.get_sector_fund_flow(redis)
+            limit_stocks_data = await MarketReviewService.get_limit_up_down_stocks(redis)
+            lhb_data = await MarketReviewService.get_lhb_data(redis)
             
             result = {
                 'concept_data': concept_data,

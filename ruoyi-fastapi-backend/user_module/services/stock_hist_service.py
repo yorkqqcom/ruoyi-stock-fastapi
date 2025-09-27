@@ -62,6 +62,10 @@ class StockHistService:
         df = df.rename(columns=FIELD_MAPPING["stock_fund_flow_individual"])
         # 确保股票代码是字符串格式
         df['symbol'] = df['symbol'].astype(str).str.zfill(6)
+        
+        # 去重处理：按股票代码去重，保留第一个出现的记录
+        df = df.drop_duplicates(subset=['symbol'], keep='first')
+        
         return df
 
     @staticmethod
@@ -139,6 +143,7 @@ class StockHistService:
             print(f"格式化后日期范围: {formatted_start_date} 至 {formatted_end_date}")
             
             # 尝试使用不同的方式获取数据
+            df = None
             try:
                 print(f"尝试使用akshare获取数据: {symbol}, {formatted_start_date}, {formatted_end_date}, {adjust}")
                 df = ak.stock_zh_a_hist(
@@ -150,9 +155,10 @@ class StockHistService:
                 )
             except Exception as e1:
                 print(f"第一次尝试失败: {str(e1)}")
+                df = None
 
-            
-            if df.empty:
+            # 若抓取失败或返回空
+            if df is None or df.empty:
                 raise ValueError(f"未找到股票 {symbol} 在指定日期范围内的数据")
                 
             # 统一列名

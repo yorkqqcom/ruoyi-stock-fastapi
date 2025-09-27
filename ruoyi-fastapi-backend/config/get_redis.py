@@ -7,6 +7,23 @@ from module_admin.service.dict_service import DictDataService
 from utils.log_util import logger
 
 
+# 全局Redis客户端实例
+_redis_client = None
+
+
+async def get_redis_client():
+    """
+    获取Redis客户端实例
+    统一Redis访问入口，遵循ruoyi-vue-fastapi框架标准
+    
+    :return: Redis连接对象
+    """
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = await RedisUtil.create_redis_pool()
+    return _redis_client
+
+
 class RedisUtil:
     """
     Redis相关方法

@@ -32,6 +32,8 @@ from user_module.routers.market_review_router import router as market_review_rou
 from user_module.routers.market_sentiment_router import router as market_sentiment_router
 from user_module.routers.ai_market_sentiment_router import router as ai_market_sentiment_router
 from user_module.routers.concept_relations_router import router as concept_relations_router
+from user_module.routers.concept_board_router import router as concept_board_router
+from user_module.routers.ede_router import router as ede_router
 
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
@@ -106,6 +108,8 @@ controller_list = [
     {'router': market_sentiment_router, 'tags': ['市场情绪分析']},
     {'router': ai_market_sentiment_router, 'tags': ['AI市场情绪分析']},
     {'router': concept_relations_router, 'tags': ['概念板块关系']},
+    {'router': concept_board_router, 'tags': ['概念板块']},
+    {'router': ede_router, 'tags': ['EDE 动态数据']},
 
 ]
 

@@ -26,3 +26,5 @@ torch
 statsmodels
 tensorflow
 matplotlib
+seaborn
+aiofiles

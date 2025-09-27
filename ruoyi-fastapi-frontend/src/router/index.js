@@ -68,9 +68,35 @@ export const constantRoutes = [
     children: [
       {
         path: '/index',
-        component: () => import('@/views/chat/ChatWindow'),
+        component: () => import('@/views/stock/ede/optimized-index.vue'),
         name: 'Index',
-        meta: { title: '首页', icon: 'message', affix: true }
+        meta: { title: '首页-数据浏览器', icon: 'druid', affix: true }
+      }
+    ]
+  },
+  {
+    path: '/',
+    component: Layout,
+    redirect: '/investment',
+    children: [
+      {
+        path: '/chat',
+        component: () => import('@/views/stock/investment/investment.vue'),
+        name: 'investment',
+        meta: { title: '资金流向分析报告', icon: 'documentation' }
+      }
+    ]
+  },
+  {
+    path: '/',
+    component: Layout,
+    redirect: '/chat',
+    children: [
+      {
+        path: '/chat',
+        component: () => import('@/views/chat/ChatWindow'),
+        name: 'EDEBrowser',
+        meta: { title: 'AIchat', icon: 'message' }
       }
     ]
   },
