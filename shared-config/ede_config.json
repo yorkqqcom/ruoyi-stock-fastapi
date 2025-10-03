@@ -390,4 +390,72 @@
       ]
     }
   }
+  ,
+  "ede_zcfz_em": {
+    "key": "ede_zcfz_em",
+    "name": "资产负债表",
+    "category": "财务数据",
+    "description": "东方财富-数据中心-年报季报-业绩快报-资产负债表",
+    "akshare": {
+      "method": "stock_zcfz_em",
+      "params": {
+        "date": {
+          "type": "string",
+          "required": true,
+          "title": "报告期",
+          "description": "选择要查询的财务报告期",
+          "options": [
+            {"value": "20250630", "label": "2025年二季度"},
+            {"value": "20250331", "label": "2025年一季度"},
+            {"value": "20241231", "label": "2024年四季度"},
+            {"value": "20240930", "label": "2024年三季度"},
+            {"value": "20240630", "label": "2024年二季度"},
+            {"value": "20240331", "label": "2024年一季度"},
+            {"value": "20231231", "label": "2023年四季度"},
+            {"value": "20230930", "label": "2023年三季度"},
+            {"value": "20230630", "label": "2023年二季度"},
+            {"value": "20230331", "label": "2023年一季度"}
+          ]
+        }
+      }
+    },
+    "mapping": {
+      "fields": {
+        "序号": "index",
+        "股票代码": "symbol",
+        "股票简称": "name",
+        "资产-货币资金": "cash",
+        "资产-应收账款": "accounts_receivable",
+        "资产-存货": "inventory",
+        "资产-总资产": "total_assets",
+        "资产-总资产同比": "total_assets_growth_yoy",
+        "负债-应付账款": "accounts_payable",
+        "负债-总负债": "total_liabilities",
+        "负债-预收账款": "advance_receipts",
+        "负债-总负债同比": "total_liabilities_growth_yoy",
+        "资产负债率": "debt_to_asset_ratio",
+        "股东权益合计": "total_shareholders_equity",
+        "公告日期": "announcement_date"
+      }
+    },
+    "ui": {
+      "form": ["date"],
+      "columns": [
+        {"field": "symbol", "label": "股票代码", "width": 100},
+        {"field": "name", "label": "股票名称", "width": 120},
+        {"field": "cash", "label": "货币资金(元)", "align": "right", "width": 120},
+        {"field": "accounts_receivable", "label": "应收账款(元)", "align": "right", "width": 130},
+        {"field": "inventory", "label": "存货(元)", "align": "right", "width": 120},
+        {"field": "total_assets", "label": "总资产(元)", "align": "right", "width": 120},
+        {"field": "total_assets_growth_yoy", "label": "总资产同比(%)", "align": "right", "width": 130},
+        {"field": "accounts_payable", "label": "应付账款(元)", "align": "right", "width": 130},
+        {"field": "total_liabilities", "label": "总负债(元)", "align": "right", "width": 120},
+        {"field": "advance_receipts", "label": "预收账款(元)", "align": "right", "width": 130},
+        {"field": "total_liabilities_growth_yoy", "label": "总负债同比(%)", "align": "right", "width": 130},
+        {"field": "debt_to_asset_ratio", "label": "资产负债率(%)", "align": "right", "width": 120},
+        {"field": "total_shareholders_equity", "label": "股东权益合计(元)", "align": "right", "width": 140},
+        {"field": "announcement_date", "label": "公告日期", "width": 120}
+      ]
+    }
+  }
 }
