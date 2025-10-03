@@ -159,24 +159,153 @@
           </div>
         </div>
         
-        <!-- 股票预览 -->
-        <div class="stock-preview" v-if="componentStocks.length > 0">
-          <div class="preview-header">
-            <span>成分股预览（前10只）</span>
-          </div>
-          <div class="stock-list">
-            <div 
-              v-for="stock in componentStocks.slice(0, 10)" 
-              :key="stock.symbol"
-              class="stock-preview-item"
-            >
-              <span class="stock-code">{{ stock.symbol }}</span>
-              <span class="stock-name">{{ stock.name }}</span>
-              <span class="stock-price">{{ stock.price }}</span>
+        <!-- 股票筛选和预览 -->
+        <div class="stock-filter-section" v-if="componentStocks.length > 0">
+          <!-- 筛选控制栏 -->
+          <div class="filter-controls">
+            <div class="filter-header">
+              <span class="filter-title">成分股筛选</span>
+              <div class="filter-stats">
+                <el-tag size="mini" type="info">
+                  共 {{ componentStocks.length }} 只
+                </el-tag>
+                <el-tag 
+                  size="mini" 
+                  :type="filteredStocks.length > 0 ? 'success' : 'warning'"
+                >
+                  已筛选 {{ filteredStocks.length }} 只
+                </el-tag>
+              </div>
+            </div>
+            
+            <!-- 筛选条件 -->
+            <div class="filter-conditions">
+              <div class="filter-row">
+                <el-input
+                  v-model="stockSearchKeyword"
+                  placeholder="搜索股票代码/名称"
+                  size="small"
+                  clearable
+                  prefix-icon="el-icon-search"
+                  style="width: 200px; margin-right: 12px;"
+                  @input="handleStockSearch"
+                />
+                
+                <el-select
+                  v-model="priceRangeFilter"
+                  placeholder="价格区间"
+                  size="small"
+                  clearable
+                  style="width: 120px; margin-right: 12px;"
+                  @change="handlePriceRangeFilter"
+                >
+                  <el-option label="全部" value="" />
+                  <el-option label="0-10元" value="0-10" />
+                  <el-option label="10-50元" value="10-50" />
+                  <el-option label="50-100元" value="50-100" />
+                  <el-option label="100元以上" value="100+" />
+                </el-select>
+                
+                <el-select
+                  v-model="sortBy"
+                  placeholder="排序方式"
+                  size="small"
+                  style="width: 120px;"
+                  @change="handleSortChange"
+                >
+                  <el-option label="默认排序" value="default" />
+                  <el-option label="按代码排序" value="code" />
+                  <el-option label="按名称排序" value="name" />
+                  <el-option label="按价格排序" value="price" />
+                </el-select>
+              </div>
+              
+              <!-- 快速筛选按钮 -->
+              <div class="quick-filters">
+                <el-button-group size="mini">
+                  <el-button 
+                    :type="quickFilter === 'all' ? 'primary' : ''"
+                    @click="applyQuickFilter('all')"
+                  >
+                    全选
+                  </el-button>
+                  <el-button 
+                    :type="quickFilter === 'top20' ? 'primary' : ''"
+                    @click="applyQuickFilter('top20')"
+                  >
+                    前20只
+                  </el-button>
+                  <el-button 
+                    :type="quickFilter === 'lowprice' ? 'primary' : ''"
+                    @click="applyQuickFilter('lowprice')"
+                  >
+                    低价股
+                  </el-button>
+                  <el-button 
+                    :type="quickFilter === 'clear' ? 'danger' : ''"
+                    @click="applyQuickFilter('clear')"
+                  >
+                    清空
+                  </el-button>
+                </el-button-group>
+              </div>
             </div>
           </div>
-          <div v-if="componentStocks.length > 10" class="more-stocks">
-            还有 {{ componentStocks.length - 10 }} 只股票...
+          
+          <!-- 股票选择列表 -->
+          <div class="stock-selection-list">
+            <div class="selection-header">
+              <div class="header-left">
+                <el-checkbox 
+                  v-model="selectAll"
+                  :indeterminate="isIndeterminate"
+                  @change="handleSelectAll"
+                >
+                  全选已筛选股票
+                </el-checkbox>
+              </div>
+              <div class="header-right">
+                <span class="selection-count">
+                  已选择 {{ selectedStockSymbols.length }} / {{ filteredStocks.length }} 只
+                </span>
+              </div>
+            </div>
+            
+            <div class="stock-list-container">
+              <div class="stock-list">
+                <div 
+                  v-for="stock in paginatedStocks" 
+                  :key="stock.symbol"
+                  class="stock-selection-item"
+                  :class="{ 'selected': selectedStockSymbols.includes(stock.symbol) }"
+                  @click="toggleStockSelection(stock.symbol)"
+                >
+                  <el-checkbox 
+                    :value="selectedStockSymbols.includes(stock.symbol)"
+                    @change="toggleStockSelection(stock.symbol)"
+                    @click.native.stop
+                  />
+                  <div class="stock-info">
+                    <span class="stock-code">{{ stock.symbol }}</span>
+                    <span class="stock-name">{{ stock.name }}</span>
+                  </div>
+                  <span class="stock-price">{{ stock.price }}</span>
+                </div>
+              </div>
+              
+              <!-- 分页控件 -->
+              <div class="pagination-container" v-if="filteredStocks.length > pageSize">
+                <el-pagination
+                  :current-page="currentPage"
+                  :page-size="pageSize"
+                  :total="filteredStocks.length"
+                  :pager-count="5"
+                  layout="prev, pager, next, total"
+                  small
+                  @current-change="handlePageChange"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -188,7 +317,7 @@
           @click="confirmBatchSelect"
           :loading="batchSelecting"
         >
-          确认选择 ({{ finalStockCount }}只)
+          确认选择 ({{ getFinalSelectedCount() }}只)
         </el-button>
       </div>
     </el-dialog>
@@ -224,6 +353,15 @@ export default {
       batchSelectDialogVisible: false,
       batchSelecting: false,
       selectionMode: 'merge', // 默认选择智能添加模式
+      
+      // 股票筛选相关
+      stockSearchKeyword: '',
+      priceRangeFilter: '',
+      sortBy: 'default',
+      quickFilter: '',
+      selectedStockSymbols: [], // 用户选择的股票代码
+      currentPage: 1,
+      pageSize: 20,
       
       // 虚拟滚动相关
       itemHeight: 60,
@@ -303,6 +441,74 @@ export default {
         )
         return this.selectedStocks.length + newStocks.length
       }
+    },
+    
+    // 筛选后的股票列表
+    filteredStocks() {
+      let stocks = [...this.componentStocks]
+      
+      // 搜索筛选
+      if (this.stockSearchKeyword.trim()) {
+        const keyword = this.stockSearchKeyword.trim().toLowerCase()
+        stocks = stocks.filter(stock => 
+          stock.symbol.toLowerCase().includes(keyword) || 
+          stock.name.toLowerCase().includes(keyword)
+        )
+      }
+      
+      // 价格区间筛选
+      if (this.priceRangeFilter) {
+        stocks = stocks.filter(stock => {
+          const price = parseFloat(stock.price) || 0
+          switch (this.priceRangeFilter) {
+            case '0-10':
+              return price >= 0 && price <= 10
+            case '10-50':
+              return price > 10 && price <= 50
+            case '50-100':
+              return price > 50 && price <= 100
+            case '100+':
+              return price > 100
+            default:
+              return true
+          }
+        })
+      }
+      
+      // 排序
+      stocks.sort((a, b) => {
+        switch (this.sortBy) {
+          case 'code':
+            return a.symbol.localeCompare(b.symbol)
+          case 'name':
+            return a.name.localeCompare(b.name)
+          case 'price':
+            return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0)
+          default:
+            return 0
+        }
+      })
+      
+      return stocks
+    },
+    
+    // 分页后的股票列表
+    paginatedStocks() {
+      const start = (this.currentPage - 1) * this.pageSize
+      const end = start + this.pageSize
+      return this.filteredStocks.slice(start, end)
+    },
+    
+    // 全选状态
+    selectAll() {
+      return this.filteredStocks.length > 0 && 
+             this.selectedStockSymbols.length === this.filteredStocks.length
+    },
+    
+    // 半选状态
+    isIndeterminate() {
+      return this.selectedStockSymbols.length > 0 && 
+             this.selectedStockSymbols.length < this.filteredStocks.length
     }
   },
   created() {
@@ -365,6 +571,8 @@ export default {
         const response = await fetchConceptComponentStocks(concept.boardName)
         if (response.code === 200) {
           this.componentStocks = response.data || []
+          // 重置筛选状态
+          this.resetFilterState()
           this.batchSelectDialogVisible = true
         } else {
           this.$message.error('获取成分股数据失败')
@@ -381,17 +589,22 @@ export default {
     confirmBatchSelect() {
       let stockSymbols = []
       
+      // 优先使用用户筛选选择的股票，如果没有选择则使用全部成分股
+      const selectedStocks = this.selectedStockSymbols.length > 0 
+        ? this.selectedStockSymbols 
+        : this.componentStocks.map(stock => stock.symbol)
+      
       if (this.selectionMode === 'replace') {
-        // 替换模式：直接使用板块成分股
-        stockSymbols = this.componentStocks.map(stock => stock.symbol)
+        // 替换模式：使用筛选后的股票
+        stockSymbols = selectedStocks
         this.$emit('batch-select-stocks', stockSymbols, 'replace')
         this.$message.success(`已替换选择 ${stockSymbols.length} 只股票`)
       } else {
         // 智能添加模式：合并当前已选和新增股票，自动去重
-        const newStocks = this.componentStocks.filter(stock => 
-          !this.selectedStocks.includes(stock.symbol)
+        const newStocks = selectedStocks.filter(symbol => 
+          !this.selectedStocks.includes(symbol)
         )
-        stockSymbols = this.selectedStocks.concat(newStocks.map(stock => stock.symbol))
+        stockSymbols = this.selectedStocks.concat(newStocks)
         this.$emit('batch-select-stocks', stockSymbols, 'merge')
         this.$message.success(`已智能添加 ${newStocks.length} 只股票，最终共 ${stockSymbols.length} 只`)
       }
@@ -440,6 +653,96 @@ export default {
       if (this.$refs.scrollContainer) {
         this.$refs.scrollContainer.scrollTop = 0
       }
+    },
+    
+    // 股票筛选相关方法
+    handleStockSearch() {
+      this.currentPage = 1 // 重置到第一页
+    },
+    
+    handlePriceRangeFilter() {
+      this.currentPage = 1 // 重置到第一页
+    },
+    
+    handleSortChange() {
+      this.currentPage = 1 // 重置到第一页
+    },
+    
+    // 快速筛选
+    applyQuickFilter(filterType) {
+      this.quickFilter = filterType
+      this.selectedStockSymbols = [] // 清空当前选择
+      
+      switch (filterType) {
+        case 'all':
+          // 选择所有筛选后的股票
+          this.selectedStockSymbols = this.filteredStocks.map(stock => stock.symbol)
+          break
+        case 'top20':
+          // 选择前20只股票
+          this.selectedStockSymbols = this.filteredStocks.slice(0, 20).map(stock => stock.symbol)
+          break
+        case 'lowprice':
+          // 选择低价股（价格<10元）
+          this.selectedStockSymbols = this.filteredStocks
+            .filter(stock => parseFloat(stock.price) < 10)
+            .map(stock => stock.symbol)
+          break
+        case 'clear':
+          // 清空选择
+          this.selectedStockSymbols = []
+          break
+      }
+    },
+    
+    // 全选/取消全选
+    handleSelectAll(checked) {
+      if (checked) {
+        this.selectedStockSymbols = this.filteredStocks.map(stock => stock.symbol)
+      } else {
+        this.selectedStockSymbols = []
+      }
+    },
+    
+    // 切换单个股票选择
+    toggleStockSelection(symbol) {
+      const index = this.selectedStockSymbols.indexOf(symbol)
+      if (index > -1) {
+        this.selectedStockSymbols.splice(index, 1)
+      } else {
+        this.selectedStockSymbols.push(symbol)
+      }
+    },
+    
+    // 分页处理
+    handlePageChange(page) {
+      this.currentPage = page
+    },
+    
+    // 获取最终选择数量
+    getFinalSelectedCount() {
+      const selectedStocks = this.selectedStockSymbols.length > 0 
+        ? this.selectedStockSymbols 
+        : this.componentStocks.map(stock => stock.symbol)
+      
+      if (this.selectionMode === 'replace') {
+        return selectedStocks.length
+      } else {
+        const newStocks = selectedStocks.filter(symbol => 
+          !this.selectedStocks.includes(symbol)
+        )
+        return this.selectedStocks.length + newStocks.length
+      }
+    },
+    
+    // 重置筛选状态
+    resetFilterState() {
+      this.stockSearchKeyword = ''
+      this.priceRangeFilter = ''
+      this.sortBy = 'default'
+      this.quickFilter = ''
+      this.selectedStockSymbols = []
+      this.currentPage = 1
     }
   },
   watch: {
@@ -919,5 +1222,188 @@ export default {
 .footer-actions {
   display: flex;
   gap: 12px;
+}
+
+/* 股票筛选相关样式 */
+.stock-filter-section {
+  margin-top: 16px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.filter-controls {
+  background: #f8f9fa;
+  padding: 12px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.filter-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.filter-stats {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-filters {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.stock-selection-list {
+  background: #fff;
+}
+
+.selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.selection-count {
+  font-size: 12px;
+  color: #606266;
+  font-weight: 500;
+}
+
+.stock-list-container {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.stock-list {
+  padding: 8px;
+}
+
+.stock-selection-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  gap: 12px;
+  border: 1px solid transparent;
+}
+
+.stock-selection-item:hover {
+  background-color: #f5f7fa;
+  border-color: #e4e7ed;
+}
+
+.stock-selection-item.selected {
+  background-color: #ecf5ff;
+  border-color: #409eff;
+}
+
+.stock-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.stock-code {
+  color: #409eff;
+  font-weight: 500;
+  font-size: 13px;
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.stock-name {
+  color: #303133;
+  font-size: 13px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-price {
+  color: #606266;
+  font-size: 13px;
+  min-width: 60px;
+  text-align: right;
+  font-weight: 500;
+}
+
+.pagination-container {
+  padding: 12px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+  display: flex;
+  justify-content: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-row .el-input,
+  .filter-row .el-select {
+    width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 8px;
+  }
+  
+  .quick-filters {
+    justify-content: center;
+  }
+  
+  .selection-header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  
+  .stock-selection-item {
+    padding: 6px 8px;
+  }
+  
+  .stock-info {
+    gap: 8px;
+  }
 }
 </style>
