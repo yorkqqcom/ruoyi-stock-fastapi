@@ -1,9 +1,9 @@
-# Ruoyi-Stock-FastAPI v0.0.1
+# Ruoyi-Stock-FastAPI v1.6.1
 
 <p align="center">
 	<img alt="logo" src="https://oscimg.oschina.net/oscnet/up-d3d0a9303e11d522a06cd263f3079027715.png">
 </p>
-<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">Ruoyi-Stock-FastAPI v0.0.1</h1>
+<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">Ruoyi-Stock-FastAPI v1.6.1</h1>
 <h4 align="center">基于RuoYi-Vue-FastAPI扩展的股票行情管理系统</h4>
 <p align="center">
 	<a href="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/stargazers"><img src="https://img.shields.io/github/stars/yorkqqcom/Ruoyi-Stock-FastAPI?style=social"></a>
@@ -15,7 +15,7 @@
 
 ## 平台简介
 
-Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.0 扩展的股票行情分析系统，在原系统基础上新增股票智能分析功能。核心特性如下：
+Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.1 扩展的股票行情分析系统，在原系统基础上新增股票智能分析功能。核心特性如下：
 
 * 前端继承 RuoYi-Vue 的 Vue + Element UI 技术栈
 * 后端采用 FastAPI + SQLAlchemy 架构
