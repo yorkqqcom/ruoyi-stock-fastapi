@@ -4,9 +4,33 @@ from fastapi import APIRouter, Request
 from utils.response_util import ResponseUtil
 from utils.log_util import logger
 import pandas as pd
-from typing import Optional
+import numpy as np
+from typing import Optional, Any
 
 router = APIRouter(prefix="/api/concept", tags=["概念板块"])
+
+def clean_nan_values(data: Any) -> Any:
+    """
+    递归清理数据中的NaN值，确保JSON序列化兼容
+    
+    Args:
+        data: 需要清理的数据
+        
+    Returns:
+        清理后的数据
+    """
+    if isinstance(data, dict):
+        return {k: clean_nan_values(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [clean_nan_values(item) for item in data]
+    elif isinstance(data, pd.Series):
+        return data.replace({pd.NA: None, pd.NaT: None}).where(pd.notnull(data), None).tolist()
+    elif isinstance(data, (np.floating, float)) and (np.isnan(data) or np.isinf(data)):
+        return None
+    elif isinstance(data, (np.integer, int)) and np.isnan(data):
+        return None
+    else:
+        return data
 
 @router.get("/board-list")
 async def get_concept_board_list(request: Request):
@@ -17,8 +41,9 @@ async def get_concept_board_list(request: Request):
         # 使用AKShare获取概念板块数据
         df = ak.stock_board_concept_name_em()
         
-        # 转换DataFrame为字典列表
+        # 转换DataFrame为字典列表，并清理NaN值
         data = df.to_dict(orient="records")
+        data = clean_nan_values(data)
         
         logger.info(f"成功获取概念板块数据，共{len(data)}个板块")
         
@@ -52,6 +77,9 @@ async def get_concept_component_stocks(
             }
             data.append(item)
         
+        # 清理NaN值，确保JSON序列化兼容
+        data = clean_nan_values(data)
+        
         logger.info(f"成功获取概念板块{symbol}成分股数据，共{len(data)}只股票")
         
         return ResponseUtil.success(data=data)
@@ -79,8 +107,9 @@ async def search_concept_boards(
         else:
             filtered_df = df
         
-        # 转换DataFrame为字典列表
+        # 转换DataFrame为字典列表，并清理NaN值
         data = filtered_df.to_dict(orient="records")
+        data = clean_nan_values(data)
         
         logger.info(f"搜索概念板块关键词'{keyword}'，找到{len(data)}个板块")
         
