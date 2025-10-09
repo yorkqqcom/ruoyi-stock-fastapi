@@ -80,7 +80,7 @@ export const constantRoutes = [
     redirect: '/investment',
     children: [
       {
-        path: '/chat',
+        path: '/investment',
         component: () => import('@/views/stock/investment/investment.vue'),
         name: 'investment',
         meta: { title: '资金流向分析报告', icon: 'documentation' }
