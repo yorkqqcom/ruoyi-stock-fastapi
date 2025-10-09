@@ -61,13 +61,24 @@ async def get_stock_list():
         return ResponseUtil.error(msg=f"获取股票列表失败: {str(e)}")
 
 
+@stock_hist_router.get("/features", response_model=dict)
+async def get_available_features():
+    """
+    获取所有可用的特征列表
+    """
+    from user_module.analyzer.enhanced_analysis_svm_time import EnhancedFeatureEngineer
+    features = EnhancedFeatureEngineer.get_available_features()
+    return ResponseUtil.success(data=features)
+
 @stock_hist_router.post("/analyze")
 async def analyze_stock(
         symbol: str = Body(...),
         start_date: str = Body(...),
-        end_date: str = Body(...)
+        end_date: str = Body(...),
+        selected_features: list = Body(default=None)
 ):
-    analyzer = EnhancedMarketAnalyzer(symbol)
+    # 如果没有提供特征列表，使用None（将使用默认特征）
+    analyzer = EnhancedMarketAnalyzer(symbol, custom_features=selected_features)
     df = analyzer.fetch_market_data()
     
     # 获取模型评估指标

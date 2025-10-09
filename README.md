@@ -24,6 +24,10 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.1 扩展的股票行情分�
   - 原型项目：[RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue)
   - 数据支持：[AKShare](https://github.com/akfamily/akshare) 提供全量历史数据接口
 
+##10月09日更新
+* 更新内容
+  - 证券分析-个股分析：支持训练因子筛选，根据筛选的因子进行模型训练并给出买点信号
+
 ##9月27日更新
 * 更新内容
   - 新增首页-数据浏览器功能
@@ -31,6 +35,10 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.1 扩展的股票行情分�
 
 ## 新增功能演示图
 <table>
+    <tr>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-6.png"/>筛选训练因子</td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/stock-5.png"/>买点预测</td>
+    </tr>
     <tr>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/ede-1.png"/>数据浏览器-提取数据</td>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/ede-2.png"/>数据浏览器-选择个股范围</td>

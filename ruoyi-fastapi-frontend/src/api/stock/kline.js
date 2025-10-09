@@ -53,3 +53,10 @@ export function getPredictability(params) {
     data: params
   })
 }
+
+export function getFeatures() {
+  return request({
+    url: '/api/stock/features',
+    method: 'get'
+  })
+}

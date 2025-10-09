@@ -1,4 +1,4 @@
-<template>
+  <template>
   <div class="app-container" @keydown.enter="handleEnterKey">
     <!-- 查询条件 -->
     <el-form :inline="true">
@@ -65,6 +65,29 @@
         买入点分析
       </el-button>
       <el-button
+        type="info"
+        @click="showFeatureDialog"
+        icon="el-icon-setting"
+        style="margin-left: 15px;"
+      >
+        训练因子配置
+        <el-badge 
+          v-if="selectedFeatures.length > 0" 
+          :value="selectedFeatures.length" 
+          class="feature-badge"
+        />
+      </el-button>
+      <el-tooltip 
+        v-if="selectedFeatures.length > 0"
+        :content="getFeaturesSummary()"
+        placement="bottom"
+        effect="light"
+      >
+        <el-tag size="mini" type="success" style="margin-left: 8px; cursor: help;">
+          已配置 {{ selectedFeatures.length }} 个因子
+        </el-tag>
+      </el-tooltip>
+      <!-- <el-button
         type="success"
         @click="showAIAnalysis"
         :loading="aiAnalysisLoading"
@@ -72,7 +95,7 @@
         style="margin-left: 15px;"
       >
         AI分析报告
-      </el-button>
+      </el-button> -->
     </el-form>
     <!-- 加载提示 -->
     <el-alert
@@ -190,6 +213,143 @@
       </el-descriptions>
     </el-card>
 
+    <!-- 特征选择对话框 -->
+    <el-dialog
+      title="训练因子选择"
+      :visible.sync="featureDialogVisible"
+      width="75%"
+      @close="handleFeatureDialogClose"
+      class="feature-selection-dialog"
+    >
+      <div class="feature-dialog-header">
+        <el-alert
+          type="success"
+          :closable="false"
+          style="margin-bottom: 20px;"
+          v-if="hasFeatureConfig"
+        >
+          <template slot="title">
+            <i class="el-icon-circle-check"></i>
+            <span style="margin-left: 8px;">
+              当前配置已保存，本次和后续分析都将使用此因子配置。您可以随时修改配置
+            </span>
+          </template>
+        </el-alert>
+        
+        <el-alert
+          type="info"
+          :closable="false"
+          style="margin-bottom: 20px;"
+        >
+          <template slot="title">
+            <i class="el-icon-info"></i>
+            <span style="margin-left: 8px;">
+              <strong>推荐因子</strong>包含价格和资金流等核心基础数据，<strong style="color: #E6A23C;">强烈建议保留</strong>。您也可以完全自由选择任意因子组合进行量化实验
+            </span>
+          </template>
+        </el-alert>
+        
+        <div class="selection-summary">
+          <span class="summary-label">当前选择：</span>
+          <el-tag type="success" size="medium">{{ selectedFeatures.length }} 个因子</el-tag>
+          <el-button 
+            type="text" 
+            size="small" 
+            @click="selectAllFeatures"
+            style="margin-left: 10px;"
+          >
+            全选
+          </el-button>
+          <el-button 
+            type="text" 
+            size="small" 
+            @click="clearAllFeatures"
+          >
+            清空
+          </el-button>
+          <el-button 
+            type="text" 
+            size="small" 
+            @click="resetToDefault"
+            v-if="hasFeatureConfig"
+          >
+            恢复默认
+          </el-button>
+        </div>
+      </div>
+
+      <div v-loading="featuresLoading" class="feature-content">
+        <el-collapse v-model="activeCategories" accordion>
+          <el-collapse-item 
+            v-for="(features, category) in availableFeatures" 
+            :key="category" 
+            :name="category"
+          >
+            <template slot="title">
+              <div class="category-header">
+                <i class="el-icon-folder-opened"></i>
+                <span class="category-title">{{ category }}</span>
+                <el-tag size="mini" type="info" style="margin-left: 10px;">
+                  {{ features.length }} 个因子
+                </el-tag>
+                <el-tag 
+                  size="mini" 
+                  type="success" 
+                  style="margin-left: 5px;"
+                  v-if="getSelectedCountInCategory(features) > 0"
+                >
+                  已选 {{ getSelectedCountInCategory(features) }} 个
+                </el-tag>
+              </div>
+            </template>
+            
+            <div class="feature-list">
+              <div 
+                v-for="feature in features" 
+                :key="feature.key" 
+                class="feature-item"
+                :class="{ 
+                  'feature-selected': isFeatureSelected(feature.key),
+                  'feature-recommended': feature.recommended 
+                }"
+              >
+                <el-checkbox 
+                  :value="isFeatureSelected(feature.key)"
+                  @change="toggleFeature(feature.key)"
+                  class="feature-checkbox"
+                >
+                  <span class="feature-name">
+                    {{ feature.name }}
+                    <el-tag v-if="feature.recommended" type="warning" size="mini" style="margin-left: 8px;">推荐</el-tag>
+                  </span>
+                </el-checkbox>
+                
+                <el-tooltip 
+                  :content="feature.description" 
+                  placement="top"
+                  effect="light"
+                  popper-class="feature-tooltip"
+                >
+                  <i class="el-icon-question feature-help-icon"></i>
+                </el-tooltip>
+                
+                <div class="feature-description">
+                  {{ feature.description }}
+                </div>
+              </div>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
+      </div>
+
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="featureDialogVisible = false" size="medium">取消</el-button>
+        <el-button type="primary" @click="applyFeatureSelection" size="medium">
+          确定选择（{{ selectedFeatures.length }}）
+        </el-button>
+      </span>
+    </el-dialog>
+
     <!-- 重点修改AI分析对话框部分 -->
     <el-dialog
       title="AI分析报告"
@@ -218,7 +378,7 @@
 
 <script>
 import * as echarts from 'echarts'
-import { getKline, getanalyzer, getstocklist } from '@/api/stock/kline'
+import { getKline, getanalyzer, getstocklist, getFeatures } from '@/api/stock/kline'
 import { postChat } from '@/api/ai/chat'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
@@ -289,11 +449,19 @@ export default {
       aiAnalysisReport: null,
       analysisCache: new Map(),
       cacheExpiration: 30 * 60 * 1000,
+      // 特征选择相关
+      featureDialogVisible: false,
+      featuresLoading: false,
+      availableFeatures: {},
+      selectedFeatures: [],
+      activeCategories: [] // 折叠面板激活的分类
     }
   },
 
   created() {
     this.loadStockList();
+    // 加载保存的因子配置
+    this.loadFeatureConfig();
   },
   mounted() {
     this.initChart()
@@ -311,6 +479,10 @@ export default {
     // 添加安全内容计算属性
     safeAnalysisReport() {
       return DOMPurify.sanitize(this.aiAnalysisReport)
+    },
+    // 判断是否有因子配置
+    hasFeatureConfig() {
+      return this.selectedFeatures.length > 0
     }
   },
   methods: {
@@ -579,6 +751,213 @@ export default {
       return `${(value * 100).toFixed(2)}%`
     },
 
+    // 因子配置持久化方法
+    loadFeatureConfig() {
+      try {
+        const savedConfig = localStorage.getItem('featureConfig')
+        if (savedConfig) {
+          const config = JSON.parse(savedConfig)
+          this.selectedFeatures = config.features || []
+          console.log('已加载保存的因子配置:', this.selectedFeatures.length, '个')
+        }
+      } catch (error) {
+        console.error('加载因子配置失败:', error)
+      }
+    },
+
+    saveFeatureConfig() {
+      try {
+        const config = {
+          features: this.selectedFeatures,
+          timestamp: Date.now()
+        }
+        localStorage.setItem('featureConfig', JSON.stringify(config))
+        console.log('已保存因子配置:', this.selectedFeatures.length, '个')
+      } catch (error) {
+        console.error('保存因子配置失败:', error)
+      }
+    },
+
+    // 获取因子配置摘要（用于tooltip显示）
+    getFeaturesSummary() {
+      if (this.selectedFeatures.length === 0) {
+        return '未配置因子'
+      }
+      
+      const summary = []
+      
+      // 统计各类因子数量
+      if (Object.keys(this.availableFeatures).length > 0) {
+        Object.entries(this.availableFeatures).forEach(([category, features]) => {
+          const selectedInCategory = features.filter(f => 
+            this.selectedFeatures.includes(f.key)
+          ).length
+          if (selectedInCategory > 0) {
+            summary.push(`${category}: ${selectedInCategory}个`)
+          }
+        })
+      }
+      
+      return summary.length > 0 ? summary.join('\n') : `已选择 ${this.selectedFeatures.length} 个因子`
+    },
+
+    // 恢复默认配置（全选）
+    resetToDefault() {
+      this.$confirm('确定要恢复默认配置吗？这将选择所有可用因子', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.selectAllFeatures()
+        this.$message.success('已恢复默认配置')
+      }).catch(() => {})
+    },
+
+    // 特征选择相关方法
+    async showFeatureDialog() {
+      this.featureDialogVisible = true
+      this.featuresLoading = true
+      try {
+        const response = await getFeatures()
+        if (response.data) {
+          this.availableFeatures = response.data
+          // 默认展开第一个分类
+          const categories = Object.keys(this.availableFeatures)
+          if (categories.length > 0) {
+            this.activeCategories = [categories[0]]
+          }
+          // 如果还没有选择特征，默认全选
+          if (this.selectedFeatures.length === 0) {
+            this.selectAllFeatures()
+          }
+        }
+      } catch (error) {
+        this.$message.error('获取特征列表失败: ' + (error.response?.data?.message || error.message))
+      } finally {
+        this.featuresLoading = false
+      }
+    },
+
+    // 全选所有特征
+    selectAllFeatures() {
+      const allFeatures = []
+      Object.values(this.availableFeatures).forEach(features => {
+        features.forEach(feature => {
+          allFeatures.push(feature.key)
+        })
+      })
+      this.selectedFeatures = allFeatures
+    },
+
+    // 清空所有选择
+    clearAllFeatures() {
+      this.selectedFeatures = []
+      this.$message.warning('已清空所有因子选择，建议至少保留推荐的基础因子')
+    },
+
+    // 切换单个特征
+    toggleFeature(featureKey) {
+      const index = this.selectedFeatures.indexOf(featureKey)
+      if (index > -1) {
+        this.selectedFeatures.splice(index, 1)
+      } else {
+        this.selectedFeatures.push(featureKey)
+      }
+    },
+
+    // 检查并提示推荐因子
+    checkRecommendedFeatures() {
+      const recommendedFeatures = []
+      const missingRecommended = []
+      
+      Object.values(this.availableFeatures).forEach(features => {
+        features.forEach(feature => {
+          if (feature.recommended) {
+            recommendedFeatures.push(feature.key)
+            if (!this.selectedFeatures.includes(feature.key)) {
+              missingRecommended.push(feature.name)
+            }
+          }
+        })
+      })
+      
+      return {
+        total: recommendedFeatures.length,
+        selected: recommendedFeatures.length - missingRecommended.length,
+        missing: missingRecommended
+      }
+    },
+
+    // 判断特征是否被选中
+    isFeatureSelected(featureKey) {
+      return this.selectedFeatures.includes(featureKey)
+    },
+
+    // 获取分类中已选择的特征数量
+    getSelectedCountInCategory(features) {
+      return features.filter(f => this.selectedFeatures.includes(f.key)).length
+    },
+
+    applyFeatureSelection() {
+      // 检查是否选择了因子
+      if (this.selectedFeatures.length === 0) {
+        this.$message.error('请至少选择1个训练因子')
+        return
+      }
+      
+      // 检查推荐因子的选择情况
+      const recommendedCheck = this.checkRecommendedFeatures()
+      
+      // 如果缺少推荐因子，给出警告但允许继续
+      if (recommendedCheck.missing.length > 0) {
+        const missingCount = recommendedCheck.missing.length
+        const missingNames = recommendedCheck.missing.slice(0, 3).join('、')
+        const moreText = missingCount > 3 ? `等${missingCount}个` : ''
+        
+        this.$confirm(
+          `您未选择以下推荐的基础因子：${missingNames}${moreText}。这可能会影响模型效果，是否继续？`,
+          '提示',
+          {
+            confirmButtonText: '继续',
+            cancelButtonText: '返回修改',
+            type: 'warning'
+          }
+        ).then(() => {
+          this.confirmSelection()
+        }).catch(() => {
+          // 用户选择返回修改
+        })
+      } else {
+        this.confirmSelection()
+      }
+    },
+    
+    confirmSelection() {
+      if (this.selectedFeatures.length > 25) {
+        this.$message.warning('选择的因子过多可能导致过拟合，建议选择10-20个因子')
+        return
+      }
+      
+      // 保存配置到 localStorage
+      this.saveFeatureConfig()
+      
+      // 统计推荐因子和拓展因子数量
+      const recommendedCheck = this.checkRecommendedFeatures()
+      const extendedCount = this.selectedFeatures.length - recommendedCheck.selected
+      
+      this.featureDialogVisible = false
+      
+      if (recommendedCheck.selected === recommendedCheck.total) {
+        this.$message.success(`已保存因子配置！本次及后续分析将使用 ${this.selectedFeatures.length} 个训练因子（推荐${recommendedCheck.selected}个 + 拓展${extendedCount}个）`)
+      } else {
+        this.$message.success(`已保存因子配置！本次及后续分析将使用 ${this.selectedFeatures.length} 个训练因子（推荐${recommendedCheck.selected}/${recommendedCheck.total}个 + 拓展${extendedCount}个）`)
+      }
+    },
+
+    handleFeatureDialogClose() {
+      this.featureDialogVisible = false
+    },
+
     async handleAnalyze() {
 
       if (!this.lastSymbol) {
@@ -592,7 +971,8 @@ export default {
         const { data } = await getanalyzer({
           symbol: this.lastSymbol,
           start_date: this.queryForm.dateRange[0],
-          end_date: this.queryForm.dateRange[1]
+          end_date: this.queryForm.dateRange[1],
+          selected_features: this.selectedFeatures.length > 0 ? this.selectedFeatures : null
         })
         // 添加信号数据校验
         if (!data.signals || data.signals.length === 0) {
@@ -1198,5 +1578,231 @@ export default {
 
 .ai-analysis-content ::v-deep a:hover {
   text-decoration: underline;
+}
+
+/* 特征选择对话框样式 */
+.feature-selection-dialog ::v-deep .el-dialog {
+  border-radius: 8px;
+}
+
+.feature-selection-dialog ::v-deep .el-dialog__header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  border-radius: 8px 8px 0 0;
+}
+
+.feature-selection-dialog ::v-deep .el-dialog__title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.feature-selection-dialog ::v-deep .el-dialog__headerbtn .el-dialog__close {
+  color: #fff;
+  font-size: 20px;
+}
+
+.feature-dialog-header {
+  margin-bottom: 20px;
+}
+
+.selection-summary {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f5f7fa;
+  border-radius: 6px;
+  border: 1px solid #e4e7ed;
+}
+
+.summary-label {
+  font-size: 14px;
+  color: #606266;
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+.feature-content {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.feature-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.feature-content::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 3px;
+}
+
+.feature-content::-webkit-scrollbar-thumb:hover {
+  background: #c0c4cc;
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  width: 100%;
+}
+
+.category-header i {
+  margin-right: 8px;
+  color: #409EFF;
+  font-size: 16px;
+}
+
+.category-title {
+  flex: 1;
+}
+
+.feature-list {
+  padding: 12px 0;
+}
+
+.feature-item {
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  background: #fff;
+  transition: all 0.3s;
+  cursor: pointer;
+  position: relative;
+}
+
+.feature-item:hover {
+  border-color: #409EFF;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.feature-item.feature-selected {
+  border-color: #409EFF;
+  background: #ecf5ff;
+}
+
+.feature-item.feature-recommended {
+  border-color: #E6A23C;
+  background: #fdf6ec;
+}
+
+.feature-item.feature-recommended:hover {
+  border-color: #E6A23C;
+  box-shadow: 0 2px 8px rgba(230, 162, 60, 0.2);
+}
+
+.feature-item.feature-recommended .feature-name {
+  color: #E6A23C;
+  font-weight: 600;
+}
+
+.feature-item.feature-recommended.feature-selected {
+  border-color: #409EFF;
+  background: #ecf5ff;
+}
+
+.feature-item.feature-recommended.feature-selected .feature-name {
+  color: #409EFF;
+}
+
+.feature-checkbox {
+  display: flex;
+  align-items: center;
+  margin-right: 0 !important;
+}
+
+.feature-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  margin-right: 8px;
+}
+
+.feature-help-icon {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  color: #909399;
+  font-size: 16px;
+  cursor: help;
+  transition: color 0.3s;
+}
+
+.feature-help-icon:hover {
+  color: #409EFF;
+}
+
+.feature-description {
+  margin-top: 8px;
+  padding-left: 24px;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.feature-item.feature-selected .feature-description {
+  color: #409EFF;
+}
+
+/* Tooltip样式 */
+::v-deep .feature-tooltip {
+  max-width: 400px;
+  border: 1px solid #409EFF;
+}
+
+::v-deep .feature-tooltip .popper__arrow::after {
+  border-top-color: #409EFF;
+}
+
+/* 折叠面板样式优化 */
+.feature-content ::v-deep .el-collapse {
+  border: none;
+}
+
+.feature-content ::v-deep .el-collapse-item__header {
+  height: auto;
+  line-height: 1.5;
+  padding: 12px 0;
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  padding: 12px 16px;
+  font-size: 15px;
+}
+
+.feature-content ::v-deep .el-collapse-item__header:hover {
+  background: #ecf5ff;
+  border-color: #409EFF;
+}
+
+.feature-content ::v-deep .el-collapse-item__wrap {
+  border: none;
+  background: transparent;
+}
+
+.feature-content ::v-deep .el-collapse-item__content {
+  padding: 0;
+}
+
+/* 按钮样式优化 */
+.dialog-footer .el-button {
+  padding: 10px 24px;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.dialog-footer .el-button--primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+.dialog-footer .el-button--primary:hover {
+  opacity: 0.9;
 }
 </style>

@@ -45,6 +45,21 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 # 扩展字段映射配置
+FUND_FLOW_FIELD_MAPPING = {
+    '日期': 'date',
+    '收盘价': 'close',
+    '涨跌幅': 'change_pct',
+    '主力净流入-净额': 'main_net_inflow',
+    '主力净流入-净占比': 'main_net_ratio',
+    '超大单净流入-净额': 'super_net_inflow',
+    '超大单净流入-净占比': 'super_net_ratio',
+    '大单净流入-净额': 'large_net_inflow',
+    '大单净流入-净占比': 'large_net_ratio',
+    '中单净流入-净额': 'mid_net_inflow',
+    '中单净流入-净占比': 'mid_net_ratio',
+    '小单净流入-净额': 'small_net_inflow',
+    '小单净流入-净占比': 'small_net_ratio',
+}
 FIELD_MAPPING = {
     "stock_zh_a_hist": {
         '日期': 'date',
@@ -61,7 +76,20 @@ FIELD_MAPPING = {
         '换手率': 'turnover_rate'
     }
 }
-
+def get_market(stock_code: str) -> str:
+    """
+    根据股票代码返回市场标识
+    :param stock_code: 6位数字股票代码字符串
+    :return: 市场标识 'sh'/'sz'/'bj'
+    """
+    if stock_code.startswith(('6', '9')):  # 上海主板/科创板(688)/B股(900)
+        return "sh"
+    elif stock_code.startswith(('0', '2', '3')):  # 深圳主板/中小板/创业板(300)/B股(200)
+        return "sz"
+    elif stock_code.startswith(('4', '8')):  # 北京证券交易所
+        return "bj"
+    else:
+        raise ValueError(f"未知的股票代码格式: {stock_code}")
 class DynamicQuantileTransformer(QuantileTransformer):
     def fit(self, X, y=None):
         if X.empty:
@@ -81,36 +109,201 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
     """增强版特征工程处理器"""
     REQUIRED_RAW_COLS = [
         "close",
+        "change_pct",
         "high",
         "low",
         "volume",
-        "turnover_rate",
-        "change_pct",
-        # "rank",  # 新增热度排名
-        # "new_fans",  # 新增新晋粉丝
-        # "loyal_fans",  # 新增铁杆粉丝
+        # "main_net_inflow",
+        "main_net_ratio",
+        # "super_net_inflow",
+        "super_net_ratio",
+        # "large_net_inflow",
+        "large_net_ratio",
+        # "mid_net_inflow",
+        "mid_net_ratio",
+        # "small_net_inflow",
+        "small_net_ratio",
     ]
 
     def __init__(
             self,
             lookback_windows: List[int] = [3, 5, 10, 14, 20, 30, 60],
             fourier_components: int = 5,
-            dynamic_feature_selection: bool = True
+            dynamic_feature_selection: bool = True,
+            custom_features: Optional[List[str]] = None
     ):
         self.lookback_windows = lookback_windows
         self.fourier_components = fourier_components
         self.dynamic_feature_selection = dynamic_feature_selection
-        self.selected_features = [
-            'day_of_week',
-            'month',
-            'is_month_end',
-            'price_volume_div',
-            # 'rank_change',  # 新增排名变化
-            # 'fans_growth',  # 新增粉丝增长
-            # 'fans_ratio',  # 新增粉丝比例
-        ]
+        # 保存 custom_features 参数（sklearn clone 需要）
+        self.custom_features = custom_features
+        # 如果提供了自定义特征列表，使用自定义的；否则使用默认的
+        if custom_features is not None:
+            self.selected_features = custom_features
+        else:
+            self.selected_features = [
+                'day_of_week',
+                'month',
+                'is_month_end',
+                # 'price_volume_div',
+                # 'rank_change',  # 新增排名变化
+                # 'fans_growth',  # 新增粉丝增长
+                # 'fans_ratio',  # 新增粉丝比例
+            ]
         # 配置技术指标参数
         self._init_ta_params()
+        
+    # 定义所有可用的特征
+    @staticmethod
+    def get_available_features() -> Dict[str, List[Dict[str, str]]]:
+        """返回所有可用的特征分类（包含中文名称和说明）"""
+        return {
+            "基础因子（强烈推荐）": [
+                {
+                    "key": "close",
+                    "name": "收盘价",
+                    "description": "每日收盘价格，是技术分析的核心数据，用于计算所有价格类指标。强烈建议保留此因子",
+                    "recommended": True
+                },
+                {
+                    "key": "change_pct",
+                    "name": "涨跌幅",
+                    "description": "日涨跌幅百分比，直接反映个股当日涨跌情况，是最重要的收益指标。强烈建议保留此因子",
+                    "recommended": True
+                },
+                {
+                    "key": "high",
+                    "name": "最高价",
+                    "description": "盘中最高价格，用于判断上方压力位和计算振幅、ATR等指标。建议保留",
+                    "recommended": True
+                },
+                {
+                    "key": "low",
+                    "name": "最低价",
+                    "description": "盘中最低价格，用于判断下方支撑位和风险控制。建议保留",
+                    "recommended": True
+                },
+                {
+                    "key": "volume",
+                    "name": "成交量",
+                    "description": "成交量数据，量价配合是A股最重要的技术分析原则，'地量见地价，天量见天价'。强烈建议保留",
+                    "recommended": True
+                },
+                {
+                    "key": "main_net_ratio",
+                    "name": "主力净流入占比",
+                    "description": "主力资金净流入占比，跟踪机构和大资金动向，A股特色资金面数据。强烈建议保留",
+                    "recommended": True
+                },
+                {
+                    "key": "super_net_ratio",
+                    "name": "超大单净流入占比",
+                    "description": "超大单（≥50万）净流入占比，追踪特大资金流向，识别主力建仓。建议保留",
+                    "recommended": True
+                },
+                {
+                    "key": "large_net_ratio",
+                    "name": "大单净流入占比",
+                    "description": "大单（20-50万）净流入占比，反映机构和大户资金动向。建议保留",
+                    "recommended": True
+                },
+                {
+                    "key": "mid_net_ratio",
+                    "name": "中单净流入占比",
+                    "description": "中单（5-20万）净流入占比，代表中等资金参与度。可选",
+                    "recommended": False
+                },
+                {
+                    "key": "small_net_ratio",
+                    "name": "小单净流入占比",
+                    "description": "小单（<5万）净流入占比，反映散户资金动向，'散户是反向指标'。可选",
+                    "recommended": False
+                }
+            ],
+            "时间周期因子": [
+                {
+                    "key": "day_of_week",
+                    "name": "交易日效应",
+                    "description": "识别周一到周五不同交易日的市场特征，捕捉A股特有的'周一效应'、'周五效应'等规律"
+                },
+                {
+                    "key": "month",
+                    "name": "月份效应",
+                    "description": "识别1-12月不同月份的季节性规律，如'春季躁动'、'红包行情'等A股特有现象"
+                },
+                {
+                    "key": "is_month_end",
+                    "name": "月末效应",
+                    "description": "捕捉月末资金面变化，识别月末窗口期特征，如机构调仓、资金回流等"
+                },
+                {
+                    "key": "week_of_year",
+                    "name": "年内周数",
+                    "description": "识别全年52周的周期性规律，捕捉年初年末的市场节奏变化"
+                },
+                {
+                    "key": "week_of_month",
+                    "name": "月内周数",
+                    "description": "识别月初、月中、月末的周期性变化，把握短期资金流动规律"
+                }
+            ],
+            "动量与趋势": [
+                {
+                    "key": "momentum",
+                    "name": "14日动量指标",
+                    "description": "衡量股价14日变化速度，判断短期趋势强弱，类似MACD的动量概念"
+                },
+                {
+                    "key": "zscore",
+                    "name": "价格偏离度(Z-Score)",
+                    "description": "衡量当前价格偏离均值的程度，识别超买超卖状态，类似布林带的标准差概念"
+                }
+            ],
+            "波动率因子": [
+                {
+                    "key": "volatility_3d",
+                    "name": "3日波动率",
+                    "description": "超短期波动率，捕捉日内及隔日的价格剧烈波动，适合T+0策略"
+                },
+                {
+                    "key": "volatility_5d",
+                    "name": "5日波动率",
+                    "description": "周度波动率，衡量一周内的价格波动幅度，识别短期风险水平"
+                },
+                {
+                    "key": "volatility_10d",
+                    "name": "10日波动率",
+                    "description": "半月波动率，捕捉两周内的市场不确定性，平衡短期与中期风险"
+                },
+                {
+                    "key": "volatility_14d",
+                    "name": "14日波动率",
+                    "description": "月度波动率（按交易日计算），识别月度风险特征，常用于止损设置"
+                },
+                {
+                    "key": "volatility_20d",
+                    "name": "20日波动率",
+                    "description": "月线波动率，衡量月度价格波动，识别中期趋势的稳定性"
+                },
+                {
+                    "key": "volatility_30d",
+                    "name": "30日波动率",
+                    "description": "季度波动率，捕捉季度内的价格波动特征，适合波段操作"
+                },
+                {
+                    "key": "volatility_60d",
+                    "name": "60日波动率",
+                    "description": "季线波动率，衡量季度级别的价格波动，识别长期风险水平"
+                }
+            ],
+            "高级量化因子": [
+                {
+                    "key": "lyapunov",
+                    "name": "李雅普诺夫指数",
+                    "description": "衡量价格序列的混沌程度，识别市场的可预测性。指数越大表示市场越混乱，预测难度越高"
+                }
+            ]
+        }
 
     def _init_ta_params(self):
         """初始化技术指标参数"""
@@ -148,20 +341,27 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
         if self.dynamic_feature_selection and self.selected_features:
             df = df[self.REQUIRED_RAW_COLS + self.selected_features]
 
-        # 确保列名唯一性
-        final_cols = list(set(self.REQUIRED_RAW_COLS + (self.selected_features or [])))
-
-        # 列名唯一性验证
-        if len(final_cols) != len(set(final_cols)):
-            duplicates = [item for item, count in collections.Counter(final_cols).items() if count > 1]
-            raise ValueError(f"发现重复列名: {duplicates}")
-        # 确保返回DataFrame并保留列名
-        df = pd.DataFrame(df, columns=final_cols, index=X.index)
-
+        # 确保列名唯一性 - 去重并保持顺序
+        seen = set()
+        final_cols = []
+        for col in self.REQUIRED_RAW_COLS + (self.selected_features or []):
+            if col not in seen and col in df.columns:
+                seen.add(col)
+                final_cols.append(col)
+        
+        # 只保留存在的列
+        final_cols = [col for col in final_cols if col in df.columns]
+        
+        if not final_cols:
+            logger.error("没有有效的特征列")
+            raise ValueError("没有有效的特征列可用")
+        
+        # 选择需要的列
+        df = df[final_cols]
+        
         df = df.ffill().fillna(0)
         df = df.replace([np.inf, -np.inf], 0)
-        final_cols = sorted(list(set(self.REQUIRED_RAW_COLS + self.selected_features)))
-        df = pd.DataFrame(df, columns=final_cols, index=X.index)
+        
         return df
 
 
@@ -216,28 +416,6 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
         # Z-Score
         new_features["zscore"] = self._adaptive_zscore(df["close"])
 
-        # 热度相关特征
-        if 'rank' in df.columns:
-            # 排名变化
-            new_features['rank_change'] = df['rank'].diff()
-            # 排名变化率
-            new_features['rank_change_pct'] = df['rank'].pct_change()
-            # 排名移动平均
-            new_features['rank_ma5'] = df['rank'].rolling(5).mean()
-            new_features['rank_ma10'] = df['rank'].rolling(10).mean()
-
-        # 粉丝相关特征
-        if 'new_fans' in df.columns and 'loyal_fans' in df.columns:
-            # 粉丝增长
-            new_features['fans_growth'] = df['new_fans'] + df['loyal_fans']
-            # 粉丝增长率
-            new_features['fans_growth_rate'] = new_features['fans_growth'].pct_change()
-            # 粉丝比例
-            new_features['fans_ratio'] = df['new_fans'] / (df['loyal_fans'] + 1e-6)  # 避免除零
-            # 粉丝移动平均
-            new_features['fans_ma5'] = new_features['fans_growth'].rolling(5).mean()
-            new_features['fans_ma10'] = new_features['fans_growth'].rolling(10).mean()
-
         return new_features
 
     def _adaptive_zscore(self, series: pd.Series) -> pd.Series:
@@ -264,16 +442,16 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
 
     def _cross_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """交互特征生成"""
-        # 量价背离指标
-        df["price_volume_div"] = (
-                df["close"].pct_change(5) -
-                df["volume"].pct_change(5).replace(0, 1e-8)
-        )
-
-        # 波动率调整动量
-        df["vol_adj_momentum"] = (
-                df["momentum"] / df["volatility_14d"].replace(0, 1e-8)
-        )
+        # # 量价背离指标
+        # df["price_volume_div"] = (
+        #         df["close"].pct_change(5) -
+        #         df["volume"].pct_change(5).replace(0, 1e-8)
+        # )
+        #
+        # # 波动率调整动量
+        # df["vol_adj_momentum"] = (
+        #         df["momentum"] / df["volatility_14d"].replace(0, 1e-8)
+        # )
 
         return df
 
@@ -348,53 +526,23 @@ class EnhancedFeatureEngineer(TransformerMixin, BaseEstimator):
 class EnhancedMarketAnalyzer:
     """增强版市场分析系统"""
 
-    def __init__(self, symbol: str = "600000"):
+    def __init__(self, symbol: str = "600000", custom_features: Optional[List[str]] = None):
         self.symbol = symbol
         self._data_versions = {}  # 数据版本控制
         # 初始化上海证券交易所日历
         self.exchange = mcal.get_calendar('SSE')  # 新增代码
-        self.selected_features = []  # 初始化为空列表
+        self.selected_features = custom_features or []  # 使用自定义特征或空列表
         self.holding_period = 5
 
         # 特征工程管道（修改此处使用DynamicQuantileTransformer）
         self.feature_pipe = Pipeline([
-            ("features", EnhancedFeatureEngineer()),
+            ("features", EnhancedFeatureEngineer(custom_features=custom_features)),
             ("scaler", DynamicQuantileTransformer(n_quantiles=1000))  # 使用动态调整的Transformer
         ])
 
         # 分层集成模型
         self.model = self._build_ensemble_model()
 
-    def _fetch_hot_rank_data(self) -> pd.DataFrame:
-        """获取股票热度排名数据"""
-        try:
-            # 转换股票代码格式
-            if self.symbol.startswith('6'):
-                symbol = f"SH{self.symbol}"
-            else:
-                symbol = f"SZ{self.symbol}"
-                
-            # 获取热度数据
-            hot_rank_df = ak.stock_hot_rank_detail_em(symbol=symbol)
-            
-            # 重命名列
-            hot_rank_df = hot_rank_df.rename(columns={
-                '时间': 'date',
-                '排名': 'rank',
-                '证券代码': 'symbol',
-                '新晋粉丝': 'new_fans',
-                '铁杆粉丝': 'loyal_fans'
-            })
-            
-            # 设置日期索引
-            hot_rank_df['date'] = pd.to_datetime(hot_rank_df['date'])
-            hot_rank_df.set_index('date', inplace=True)
-            
-            return hot_rank_df
-            
-        except Exception as e:
-            logger.error(f"获取热度数据失败: {str(e)}")
-            return pd.DataFrame()
 
     def fetch_market_data(self, refresh: bool = False) -> pd.DataFrame:
         """
@@ -414,18 +562,9 @@ class EnhancedMarketAnalyzer:
         try:
             # 原始数据查询
             raw_df = self._execute_market_query()
-            
-            # 获取热度数据
-            hot_rank_df = self._fetch_hot_rank_data()
-            
-            # 合并热度数据
-            if not hot_rank_df.empty:
-                raw_df = raw_df.join(hot_rank_df[['rank', 'new_fans', 'loyal_fans']], how='left')
-                # 填充缺失值
-                raw_df[['rank', 'new_fans', 'loyal_fans']] = raw_df[['rank', 'new_fans', 'loyal_fans']].fillna(method='ffill')
 
             logger.info(f"获取原始数据 {self.symbol} 行数: {len(raw_df)}")
-            if raw_df.empty:
+            if raw_df is None or (hasattr(raw_df, 'empty') and raw_df.empty):
                 logger.error("获取的原始数据为空，请检查数据源或股票代码")
                 raise ValueError("原始数据为空，无法继续处理")
             raw_df = raw_df[~raw_df.index.duplicated(keep='first')]
@@ -472,7 +611,7 @@ class EnhancedMarketAnalyzer:
     def _build_ensemble_model(self) -> Pipeline:
         """构建包含特征工程和分层集成模型的总管道"""
         feature_pipe = Pipeline([
-            ("features", EnhancedFeatureEngineer()),
+            ("features", EnhancedFeatureEngineer(custom_features=self.selected_features)),
             ("scaler", DynamicQuantileTransformer(n_quantiles=1000))
         ])
 
@@ -518,31 +657,40 @@ class EnhancedMarketAnalyzer:
 
     def _execute_market_query(self) -> pd.DataFrame:
 
-        # 计算3年前的日期（基于当前系统时间）
-        start_date = datetime.datetime.now() - relativedelta(years=3)
-        # end_date = datetime.datetime.now() - datetime.timedelta(days=5)
+        # 计算1年前的日期（基于当前系统时间）
+        start_date = datetime.datetime.now() - relativedelta(years=1)
         end_date = datetime.datetime.now()
         start_date_str = start_date.strftime("%Y%m%d")
         end_date_str = end_date.strftime("%Y%m%d")
-        try:
-            df = ak.stock_zh_a_hist(
-                symbol=self.symbol,
-                period='daily',
-                start_date=start_date_str,
-                end_date=end_date_str,
-                adjust='hfq'
-            )
-            df = df.rename(columns=FIELD_MAPPING["stock_zh_a_hist"])
-            # 新增代码：设置日期索引
-            df['date'] = pd.to_datetime(df['date'])
-            df.set_index('date', inplace=True)
-            df = df.sort_index()  # 确保按日期排序
-            return df
+        df = ak.stock_zh_a_hist(
+            symbol=self.symbol,
+            period='daily',
+            start_date=start_date_str,
+            end_date=end_date_str,
+            adjust='hfq'
+        )
+        # 新增防御性检查
+        if df is None or (hasattr(df, 'empty') and df.empty):
+            logger.error(f"akshare未能获取到K线数据: {self.symbol}")
+            return None
+        df = df.rename(columns=FIELD_MAPPING["stock_zh_a_hist"])
+        df['date'] = pd.to_datetime(df['date'])
+        df.set_index('date', inplace=True)
 
+        # 获取资金流数据
+        fund_df = ak.stock_individual_fund_flow(stock=self.symbol,market=get_market(self.symbol))
+        # 新增防御性检查
+        if fund_df is None or (hasattr(fund_df, 'empty') and fund_df.empty):
+            logger.error(f"akshare未能获取到资金流数据: {self.symbol}")
+            return None
+        fund_df = fund_df.rename(columns=FUND_FLOW_FIELD_MAPPING)
+        fund_df['date'] = pd.to_datetime(fund_df['date'])
+        fund_df.set_index('date', inplace=True)
+        # 以fund_df为主，左连接df，日期范围与fund_df一致
+        merged_df = fund_df.join(df, how='left', rsuffix='_kline')
+        merged_df = merged_df.sort_index()
+        return merged_df
 
-        except Exception as e:
-            logger.error("数据查询失败")
-            raise
 
 
     def _sanitize_price_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1104,7 +1252,7 @@ class EnhancedMarketAnalyzer:
             包含基础信号的DataFrame
         """
         # 验证必要的列是否存在
-        required_columns = ['close', 'low', 'high', 'volume', 'turnover_rate']
+        required_columns = ['close', 'low', 'high']
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
             logger.error(f"数据缺少必要的列: {missing_columns}")
@@ -1189,9 +1337,9 @@ class EnhancedMarketAnalyzer:
         # # 综合买入条件
         buy_mask = (
                 (predictions == 1) &
-                turnover_cond1 &  # 换手率条件1
+                 # turnover_cond1 &  # 换手率条件1
                 turnover_cond2 &  # 换手率条件2
-                # turnover_cond3 &  # 换手率条件3
+                turnover_cond3 &  # 换手率条件3
                 turnover_cond4  # 换手率条件4
         )  # 模型预测为上涨
         # buy_mask = (
