@@ -36,10 +36,6 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.1 扩展的股票行情分�
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-3.png"/></td>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-4.png"/></td>
     </tr>
-    <tr>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/investment-1.png"/>资金流向分析报告</td>
-        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/investment-2.png"/>概念板块深度分析</td>
-    </tr>
 </table>
 
 ##10月09日更新
