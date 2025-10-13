@@ -24,6 +24,24 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.1 扩展的股票行情分�
   - 原型项目：[RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue)
   - 数据支持：[AKShare](https://github.com/akfamily/akshare) 提供全量历史数据接口
 
+##10月14日跟新
+* 更新内容
+  - 证券分析-lstm股价预测功能
+<table>
+    <tr>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-1.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-2.png"/></td>
+    </tr>
+    <tr>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-3.png"/></td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-4.png"/></td>
+    </tr>
+    <tr>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/investment-1.png"/>资金流向分析报告</td>
+        <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/investment-2.png"/>概念板块深度分析</td>
+    </tr>
+</table>
+
 ##10月09日更新
 * 更新内容
   - 证券分析-个股分析：支持训练因子筛选，根据筛选的因子进行模型训练并给出买点信号

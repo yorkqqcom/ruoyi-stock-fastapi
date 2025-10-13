@@ -129,7 +129,8 @@ class StockHistService:
             end_date: str = None,
             adjust: str = None,
     ):
-        if adjust == 'none':
+        # 将前端传递的 'normal' 转换为 akshare 需要的空字符串
+        if adjust in ['none', 'normal', None]:
             adjust = ''
             
         try:
