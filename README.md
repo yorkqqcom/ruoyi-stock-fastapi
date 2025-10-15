@@ -28,6 +28,8 @@ Ruoyi-Stock-FastAPI 是基于 RuoYi-Vue-FastAPI v1.6.1 扩展的股票行情分�
 * 更新内容
   - 证券分析-lstm股价预测功能
   - 需要更新SYS_MENU 记录。(ruoyi-fastapi-backend/ruoyi-fastapi.sql)
+
+注意 bcrypt==4.3.0
 <table>
     <tr>
         <td><img src="https://github.com/yorkqqcom/Ruoyi-Stock-FastAPI/blob/master/demo-pictures/lstm-1.png"/></td>
