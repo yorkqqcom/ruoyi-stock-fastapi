@@ -1,0 +1,8 @@
+tushare==1.2.89
+pymysql==1.1.0
+SQLAlchemy==1.4.50
+pandas>=2.3.0
+numpy>=2.3.0
+python-dotenv==1.0.0
+schedule==1.2.0
+loguru==0.7.0
