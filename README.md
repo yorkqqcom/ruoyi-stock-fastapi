@@ -102,14 +102,12 @@ npm run dev
 
 - 在 `.env.dev` 中配置 `TUSHARE_TOKEN`，执行 `sql/tushare_mysql.sql` 或 `sql/tushare_pg.sql`。
 - 登录后通过「Tushare 数据管理」菜单配置接口与下载任务。  
-- 详细说明：[module_tushare/README.md](ruoyi-fastapi-backend/module_tushare/README.md)
 
 ### 因子与模型训练
 
 - **因子定义**：可在后台维护，或使用项目根目录下 `tools/generate_factor_sql.py` 根据 `features/` 中的特征生成 `factor_definition` 的 SQL（输出到 `ruoyi-fastapi-backend/sql/factor_definition_auto.sql`），再按需合并到 factor 相关脚本。
 - **因子计算**：依赖已落地的行情/因子数据表（如 Tushare 下载结果），通过「因子管理」相关菜单配置计算任务与查看因子值、计算日志。
 - **模型训练与预测**：需先有 `factor_value` 等数据，再在「模型管理」中创建训练任务、查看结果、执行预测。  
-- 详细说明：[sql/README_model_train.md](ruoyi-fastapi-backend/sql/README_model_train.md)
 
 ## 注意事项
 
