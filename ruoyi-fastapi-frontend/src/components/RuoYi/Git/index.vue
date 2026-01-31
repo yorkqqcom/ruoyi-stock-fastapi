@@ -4,18 +4,10 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'RuoYiGit',
-  data() {
-    return {
-      url: 'https://gitee.com/insistence2022/RuoYi-Vue-FastAPI'
-    }
-  },
-  methods: {
-    goto() {
-      window.open(this.url)
-    }
-  }
+<script setup>
+const url = ref('https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI');
+
+function goto() {
+  window.open(url.value)
 }
 </script>

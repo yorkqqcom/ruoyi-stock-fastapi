@@ -1,0 +1,8 @@
+# 因子配置文件示例（因子之间用换行分隔，不要用逗号）
+# 每行一个因子代码，或使用 category__feature_name 格式
+# 空行和 # 开头的行会被忽略
+
+technical_ema_10
+technical_ema_5
+technical_sma_10
+technical_sma_5

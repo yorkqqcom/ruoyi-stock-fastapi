@@ -1,7 +1,5 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-.idea/
-.vscode/
 *.py[cod]
 *$py.class
 
@@ -138,7 +136,10 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
-ruoyi-fastapi-backend/ai.env
-# SpecStory explanation file
-.specstory/
-.specstory/.what-is-this.md
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+

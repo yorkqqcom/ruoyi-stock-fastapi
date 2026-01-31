@@ -25,6 +25,10 @@ export function parseTime(time, pattern) {
     }
     date = new Date(time)
   }
+  // 无效日期（如 Invalid Date）不格式化，避免显示 0-0-0 0:0:0
+  if (isNaN(date.getTime())) {
+    return null
+  }
   const formatObj = {
     y: date.getFullYear(),
     m: date.getMonth() + 1,
@@ -85,7 +89,7 @@ export function selectDictLabel(datas, value) {
   return actions.join('');
 }
 
-// 回显数据字典（字符串、数组）
+// 回显数据字典（字符串数组）
 export function selectDictLabels(datas, value, separator) {
   if (value === undefined || value.length ===0) {
     return "";
@@ -224,6 +228,19 @@ export function tansParams(params) {
     }
   }
   return result
+}
+
+
+// 返回项目路径
+export function getNormalPath(p) {
+  if (p.length === 0 || !p || p == 'undefined') {
+    return p
+  };
+  let res = p.replace('//', '/')
+  if (res[res.length - 1] === '/') {
+    return res.slice(0, res.length - 1)
+  }
+  return res;
 }
 
 // 验证是否为blob格式

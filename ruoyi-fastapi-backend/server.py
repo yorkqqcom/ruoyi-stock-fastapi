@@ -1,41 +1,17 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+
+from fastapi import FastAPI, applications
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.responses import HTMLResponse
+
+from common.router import auto_register_routers
 from config.env import AppConfig
 from config.get_db import init_create_table
 from config.get_redis import RedisUtil
 from config.get_scheduler import SchedulerUtil
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
-from module_admin.controller.cache_controller import cacheController
-from module_admin.controller.captcha_controller import captchaController
-from module_admin.controller.common_controller import commonController
-from module_admin.controller.config_controller import configController
-from module_admin.controller.dept_controller import deptController
-from module_admin.controller.dict_controller import dictController
-from module_admin.controller.log_controller import logController
-from module_admin.controller.login_controller import loginController
-from module_admin.controller.job_controller import jobController
-from module_admin.controller.menu_controller import menuController
-from module_admin.controller.notice_controller import noticeController
-from module_admin.controller.online_controller import onlineController
-from module_admin.controller.post_controler import postController
-from module_admin.controller.role_controller import roleController
-from module_admin.controller.server_controller import serverController
-from module_admin.controller.user_controller import userController
-from module_generator.controller.gen_controller import genController
-
-from user_module.routers.stock_hist_router import stock_hist_router
-from user_module.routers.ai_router import ai_router
-from user_module.routers.stock_sentiment_router import router as stock_sentiment_router
-from user_module.routers.market_review_router import router as market_review_router
-from user_module.routers.market_sentiment_router import router as market_sentiment_router
-from user_module.routers.ai_market_sentiment_router import router as ai_market_sentiment_router
-from user_module.routers.concept_relations_router import router as concept_relations_router
-from user_module.routers.concept_board_router import router as concept_board_router
-from user_module.routers.ede_router import router as ede_router
-from user_module.routers.lstm_prediction import router as lstm_prediction_router
-
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
 from utils.log_util import logger
@@ -43,77 +19,82 @@ from utils.log_util import logger
 
 # 生命周期事件
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info(f'{AppConfig.app_name}开始启动')
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    logger.info(f'⏰️ {AppConfig.app_name}开始启动')
     worship()
     await init_create_table()
     app.state.redis = await RedisUtil.create_redis_pool()
     await RedisUtil.init_sys_dict(app.state.redis)
     await RedisUtil.init_sys_config(app.state.redis)
     await SchedulerUtil.init_system_scheduler()
-    logger.info(f'{AppConfig.app_name}启动成功')
+    logger.info(f'🚀 {AppConfig.app_name}启动成功')
     yield
     await RedisUtil.close_redis_pool(app)
     await SchedulerUtil.close_system_scheduler()
 
 
-# 初始化FastAPI对象
-app = FastAPI(
-    title=AppConfig.app_name,
-    description=f'{AppConfig.app_name}接口文档',
-    version=AppConfig.app_version,
-    lifespan=lifespan,
-)
+def setup_docs_static_resources(
+    redoc_js_url: str = 'https://registry.npmmirror.com/redoc/2/files/bundles/redoc.standalone.js',
+    redoc_favicon_url: str = 'https://fastapi.tiangolo.com/img/favicon.png',
+    swagger_js_url: str = 'https://registry.npmmirror.com/swagger-ui-dist/5/files/swagger-ui-bundle.js',
+    swagger_css_url: str = 'https://registry.npmmirror.com/swagger-ui-dist/5/files/swagger-ui.css',
+    swagger_favicon_url: str = 'https://fastapi.tiangolo.com/img/favicon.png',
+) -> None:
+    """
+    配置文档静态资源
 
-# 配置CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    :param redoc_js_url: 用于加载ReDoc JavaScript的URL
+    :param redoc_favicon_url: ReDoc要使用的favicon的URL
+    :param swagger_js_url: 用于加载Swagger UI JavaScript的URL
+    :param swagger_css_url: 用于加载Swagger UI CSS的URL
+    :param swagger_favicon_url: Swagger UI要使用的favicon的URL
+    :return:
+    """
 
-# 挂载子应用
-handle_sub_applications(app)
-# 加载中间件处理方法
-handle_middleware(app)
-# 加载全局异常处理方法
-handle_exception(app)
+    def redoc_monkey_patch(*args, **kwargs) -> HTMLResponse:
+        return get_redoc_html(
+            *args,
+            **kwargs,
+            redoc_js_url=redoc_js_url,
+            redoc_favicon_url=redoc_favicon_url,
+        )
+
+    def swagger_ui_monkey_patch(*args, **kwargs) -> HTMLResponse:
+        return get_swagger_ui_html(
+            *args,
+            **kwargs,
+            swagger_js_url=swagger_js_url,
+            swagger_css_url=swagger_css_url,
+            swagger_favicon_url=swagger_favicon_url,
+        )
+
+    applications.get_redoc_html = redoc_monkey_patch
+    applications.get_swagger_ui_html = swagger_ui_monkey_patch
 
 
-# 加载路由列表
-controller_list = [
-    {'router': loginController, 'tags': ['登录模块']},
-    {'router': captchaController, 'tags': ['验证码模块']},
-    {'router': userController, 'tags': ['系统管理-用户管理']},
-    {'router': roleController, 'tags': ['系统管理-角色管理']},
-    {'router': menuController, 'tags': ['系统管理-菜单管理']},
-    {'router': deptController, 'tags': ['系统管理-部门管理']},
-    {'router': postController, 'tags': ['系统管理-岗位管理']},
-    {'router': dictController, 'tags': ['系统管理-字典管理']},
-    {'router': configController, 'tags': ['系统管理-参数管理']},
-    {'router': noticeController, 'tags': ['系统管理-通知公告管理']},
-    {'router': logController, 'tags': ['系统管理-日志管理']},
-    {'router': onlineController, 'tags': ['系统监控-在线用户']},
-    {'router': jobController, 'tags': ['系统监控-定时任务']},
-    {'router': serverController, 'tags': ['系统监控-菜单管理']},
-    {'router': cacheController, 'tags': ['系统监控-缓存监控']},
-    {'router': commonController, 'tags': ['通用模块']},
-    {'router': genController, 'tags': ['代码生成']},
+def create_app() -> FastAPI:
+    """
+    创建FastAPI应用
 
-    {'router': stock_hist_router, 'tags': ['个股历史行情']},
-    {'router': ai_router, 'tags': ['AI对话']},
-    {'router': stock_sentiment_router, 'tags': ['市场情绪分析']},
-    {'router': market_review_router, 'tags': ['市场复盘']},
-    {'router': market_sentiment_router, 'tags': ['市场情绪分析']},
-    {'router': ai_market_sentiment_router, 'tags': ['AI市场情绪分析']},
-    {'router': concept_relations_router, 'tags': ['概念板块关系']},
-    {'router': concept_board_router, 'tags': ['概念板块']},
-    {'router': ede_router, 'tags': ['EDE 动态数据']},
-    {'router': lstm_prediction_router, 'tags': ['LSTM股票预测']},
+    :return: FastAPI对象
+    """
+    # 配置文档静态资源
+    setup_docs_static_resources()
+    # 初始化FastAPI对象
+    app = FastAPI(
+        title=AppConfig.app_name,
+        description=f'{AppConfig.app_name}接口文档',
+        version=AppConfig.app_version,
+        lifespan=lifespan,
+    )
 
-]
+    # 挂载子应用
+    handle_sub_applications(app)
+    # 加载中间件处理方法
+    handle_middleware(app)
+    # 加载全局异常处理方法
+    handle_exception(app)
+    # 自动注册路由
+    auto_register_routers(app)
 
-for controller in controller_list:
-    app.include_router(router=controller.get('router'), tags=controller.get('tags'))
+    return app

@@ -4,6 +4,7 @@
 {% if table.sub %}
 from sqlalchemy.orm import relationship
 {% endif %}
+
 from config.database import Base
 
 
@@ -13,6 +14,7 @@ class {{ ClassName }}(Base):
     """
 
     __tablename__ = '{{ tableName }}'
+    __table_args__ = {'comment': '{{ tableComment }}'}
 
     {% for column in columns %}
     {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')

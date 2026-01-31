@@ -1,8 +1,4 @@
-import Vue from 'vue'
-import Router from 'vue-router'
-
-Vue.use(Router)
-
+import { createWebHistory, createRouter } from 'vue-router'
 /* Layout */
 import Layout from '@/layout'
 
@@ -37,7 +33,7 @@ export const constantRoutes = [
     children: [
       {
         path: '/redirect/:path(.*)',
-        component: () => import('@/views/redirect')
+        component: () => import('@/views/redirect/index.vue')
       }
     ]
   },
@@ -52,7 +48,7 @@ export const constantRoutes = [
     hidden: true
   },
   {
-    path: '/404',
+    path: "/:pathMatch(.*)*",
     component: () => import('@/views/error/404'),
     hidden: true
   },
@@ -62,41 +58,15 @@ export const constantRoutes = [
     hidden: true
   },
   {
-    path: '/',
+    path: '',
     component: Layout,
     redirect: '/index',
     children: [
       {
         path: '/index',
-        component: () => import('@/views/stock/ede/optimized-index.vue'),
+        component: () => import('@/views/dashboard/index'),
         name: 'Index',
-        meta: { title: '首页-数据浏览器', icon: 'druid', affix: true }
-      }
-    ]
-  },
-  {
-    path: '/',
-    component: Layout,
-    redirect: '/investment',
-    children: [
-      {
-        path: '/investment',
-        component: () => import('@/views/stock/investment/investment.vue'),
-        name: 'investment',
-        meta: { title: '资金流向分析报告', icon: 'documentation' }
-      }
-    ]
-  },
-  {
-    path: '/',
-    component: Layout,
-    redirect: '/chat',
-    children: [
-      {
-        path: '/chat',
-        component: () => import('@/views/chat/ChatWindow'),
-        name: 'EDEBrowser',
-        meta: { title: 'AIchat', icon: 'message' }
+        meta: { title: '首页', icon: 'dashboard', affix: true }
       }
     ]
   },
@@ -104,10 +74,10 @@ export const constantRoutes = [
     path: '/user',
     component: Layout,
     hidden: true,
-    redirect: '/noredirect',
+    redirect: 'noredirect',
     children: [
       {
-        path: '/profile',
+        path: 'profile/:activeTab?',
         component: () => import('@/views/system/user/profile/index'),
         name: 'Profile',
         meta: { title: '个人中心', icon: 'user' }
@@ -115,6 +85,7 @@ export const constantRoutes = [
     ]
   }
 ]
+
 // 动态路由，基于用户权限动态去加载
 export const dynamicRoutes = [
   {
@@ -173,6 +144,7 @@ export const dynamicRoutes = [
       }
     ]
   },
+
   {
     path: '/tool/gen-edit',
     component: Layout,
@@ -189,20 +161,15 @@ export const dynamicRoutes = [
   }
 ]
 
-// 防止连续点击多次路由报错
-let routerPush = Router.prototype.push;
-let routerReplace = Router.prototype.replace;
-// push
-Router.prototype.push = function push(location) {
-  return routerPush.call(this, location).catch(err => err)
-}
-// replace
-Router.prototype.replace = function push(location) {
-  return routerReplace.call(this, location).catch(err => err)
-}
+const router = createRouter({
+  history: createWebHistory(),
+  routes: constantRoutes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    }
+    return { top: 0 }
+  },
+});
 
-export default new Router({
-  mode: 'history', // 去掉url中的#
-  scrollBehavior: () => ({ y: 0 }),
-  routes: constantRoutes
-})
+export default router;

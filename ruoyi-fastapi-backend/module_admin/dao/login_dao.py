@@ -1,10 +1,11 @@
-from sqlalchemy import and_, select
+from sqlalchemy import Row, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.user_do import SysUser
 
 
-async def login_by_account(db: AsyncSession, user_name: str):
+async def login_by_account(db: AsyncSession, user_name: str) -> Row[tuple[SysUser, SysDept]] | None:
     """
     根据用户名查询用户信息
 

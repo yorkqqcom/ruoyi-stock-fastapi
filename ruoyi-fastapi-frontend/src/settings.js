@@ -1,4 +1,9 @@
-module.exports = {
+export default {
+  /**
+   * 网页标题
+   */
+  title: import.meta.env.VITE_APP_TITLE,
+
   /**
    * 侧边栏主题 深色主题theme-dark，浅色主题theme-light
    */
@@ -7,12 +12,12 @@ module.exports = {
   /**
    * 是否系统布局配置
    */
-  showSettings: false,
+  showSettings: true,
 
   /**
-   * 是否显示顶部导航
+   * 菜单导航模式 1、纯左侧 2、混合（左侧+顶部） 3、纯顶部
    */
-  topNav: false,
+  navType: 1,
 
   /**
    * 是否显示 tagsView
@@ -20,9 +25,14 @@ module.exports = {
   tagsView: true,
 
   /**
+   * 显示页签图标
+   */
+  tagsIcon: false,
+
+  /**
    * 是否固定头部
    */
-  fixedHeader: false,
+  fixedHeader: true,
 
   /**
    * 是否显示logo
@@ -35,10 +45,12 @@ module.exports = {
   dynamicTitle: false,
 
   /**
-   * @type {string | array} 'production' | ['production', 'development']
-   * @description Need show err logs component.
-   * The default is only used in the production env
-   * If you want to also use it in dev, you can pass ['production', 'development']
+   * 是否显示底部版权
    */
-  errorLog: 'production'
+  footerVisible: false,
+
+  /**
+   * 底部版权文本内容
+   */
+  footerContent: 'Copyright © 2024-2025 insistence.tech All Rights Reserved.'
 }

@@ -1,43 +1,36 @@
 <template>
   <section class="app-main">
-    <transition name="fade-transform" mode="out-in">
-      <keep-alive :include="cachedViews">
-        <router-view v-if="!$route.meta.link" :key="key" />
-      </keep-alive>
-    </transition>
+    <router-view v-slot="{ Component, route }">
+      <transition name="fade-transform" mode="out-in">
+        <keep-alive :include="tagsViewStore.cachedViews">
+          <component v-if="!route.meta.link" :is="Component" :key="route.path"/>
+        </keep-alive>
+      </transition>
+    </router-view>
     <iframe-toggle />
+    <copyright />
   </section>
 </template>
 
-<script>
+<script setup>
+import copyright from "./Copyright/index"
 import iframeToggle from "./IframeToggle/index"
+import useTagsViewStore from '@/store/modules/tagsView'
 
-export default {
-  name: 'AppMain',
-  components: { iframeToggle },
-  computed: {
-    cachedViews() {
-      return this.$store.state.tagsView.cachedViews
-    },
-    key() {
-      return this.$route.path
-    }
-  },
-  watch: {
-    $route() {
-      this.addIframe()
-    }
-  },
-  mounted() {
-    this.addIframe()
-  },
-  methods: {
-    addIframe() {
-      const {name} = this.$route
-      if (name && this.$route.meta.link) {
-        this.$store.dispatch('tagsView/addIframeView', this.$route)
-      }
-    }
+const route = useRoute()
+const tagsViewStore = useTagsViewStore()
+
+onMounted(() => {
+  addIframe()
+})
+
+watchEffect(() => {
+  addIframe()
+})
+
+function addIframe() {
+  if (route.meta.link) {
+    useTagsViewStore().addIframeView(route)
   }
 }
 </script>
@@ -52,7 +45,18 @@ export default {
 }
 
 .fixed-header + .app-main {
-  padding-top: 50px;
+  overflow-y: auto;
+  scrollbar-gutter: auto;
+  height: calc(100vh - 50px);
+  min-height: 0px;
+}
+
+.app-main:has(.copyright) {
+  padding-bottom: 36px;
+}
+
+.fixed-header + .app-main {
+  margin-top: 50px;
 }
 
 .hasTagsView {
@@ -62,19 +66,47 @@ export default {
   }
 
   .fixed-header + .app-main {
-    padding-top: 84px;
+    margin-top: 84px;
+    height: calc(100vh - 84px);
+    min-height: 0px;
+  }
+}
+
+/* 移动端fixed-header优化 */
+@media screen and (max-width: 991px) {
+  .fixed-header + .app-main {
+    padding-bottom: max(60px, calc(constant(safe-area-inset-bottom) + 40px));
+    padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 40px));
+    overscroll-behavior-y: none;
+  }
+
+  .hasTagsView .fixed-header + .app-main {
+    padding-bottom: max(60px, calc(constant(safe-area-inset-bottom) + 40px));
+    padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 40px));
+    overscroll-behavior-y: none;
+  }
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media screen and (max-width: 991px) {
+    .fixed-header + .app-main {
+      padding-bottom: max(17px, calc(constant(safe-area-inset-bottom) + 10px));
+      padding-bottom: max(17px, calc(env(safe-area-inset-bottom) + 10px));
+      height: calc(100svh - 50px);
+      height: calc(100dvh - 50px);
+    }
+
+    .hasTagsView .fixed-header + .app-main {
+      padding-bottom: max(17px, calc(constant(safe-area-inset-bottom) + 10px));
+      padding-bottom: max(17px, calc(env(safe-area-inset-bottom) + 10px));
+      height: calc(100svh - 84px);
+      height: calc(100dvh - 84px);
+    }
   }
 }
 </style>
 
 <style lang="scss">
-// fix css style bug in open el-dialog
-.el-popup-parent--hidden {
-  .fixed-header {
-    padding-right: 6px;
-  }
-}
-
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -89,3 +121,4 @@ export default {
   border-radius: 3px;
 }
 </style>
+
