@@ -21,3 +21,5 @@ SQLAlchemy[asyncio]==2.0.45
 sqlglot[rs]==28.5.0
 tushare==1.2.89
 user-agents==2.2.0
+asyncpg
+
