@@ -1,5 +1,0 @@
-playwright
-pytest
-pytest-asyncio
-pytest-playwright
-ruff
