@@ -242,10 +242,10 @@ comment on table sys_menu is '菜单权限表';
 -- 初始化-菜单信息表数据
 -- ----------------------------
 -- 一级菜单
-insert into sys_menu values(1, '系统管理', 0, '1', 'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', current_timestamp, '', null, '系统管理目录');
-insert into sys_menu values(2, '系统监控', 0, '2', 'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', current_timestamp, '', null, '系统监控目录');
-insert into sys_menu values(3, '系统工具', 0, '3', 'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', current_timestamp, '', null, '系统工具目录');
-insert into sys_menu values(4, '若依官网', 0, '4', 'http://ruoyi.vip', null, '', '', 0, 0, 'M', '0', '0', '', 'guide',    'admin', current_timestamp, '', null, '若依官网地址');
+insert into sys_menu values(1, '系统管理', 0, '6', 'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', current_timestamp, '', null, '系统管理目录');
+insert into sys_menu values(2, '系统监控', 0, '7', 'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', current_timestamp, '', null, '系统监控目录');
+insert into sys_menu values(3, '系统工具', 0, '8', 'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', current_timestamp, '', null, '系统工具目录');
+insert into sys_menu values(4, '若依官网', 0, '9', 'http://ruoyi.vip', null, '', '', 0, 0, 'M', '0', '0', '', 'guide',    'admin', current_timestamp, '', null, '若依官网地址');
 -- 二级菜单
 insert into sys_menu values(100,  '用户管理', 1,   '1', 'user',       'system/user/index',        '', '', 1, 0, 'C', '0', '0', 'system:user:list',        'user',          'admin', current_timestamp, '', null, '用户管理菜单');
 insert into sys_menu values(101,  '角色管理', 1,   '2', 'role',       'system/role/index',        '', '', 1, 0, 'C', '0', '0', 'system:role:list',        'peoples',       'admin', current_timestamp, '', null, '角色管理菜单');

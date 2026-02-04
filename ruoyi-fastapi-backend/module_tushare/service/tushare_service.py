@@ -686,12 +686,72 @@ class TushareDownloadTaskService:
         
         if task.status != '0':
             raise ServiceException(message='任务已暂停，无法执行')
-        
+
+        # 执行前预检查：接口与配置存在性
+        import os
+        import tushare as ts
+        from config.env import TushareConfig
+
+        if task.workflow_id:
+            # 工作流任务：校验流程存在且各步骤的接口配置与接口存在
+            workflow = await TushareWorkflowConfigDao.get_workflow_detail_by_id(query_db, task.workflow_id)
+            if not workflow:
+                raise ServiceException(message='流程配置不存在')
+            steps = await TushareWorkflowStepDao.get_steps_by_workflow_id(query_db, task.workflow_id)
+            if not steps:
+                raise ServiceException(message='流程无有效步骤')
+            token = TushareConfig.tushare_token or os.getenv('TUSHARE_TOKEN', '')
+            if not token:
+                raise ServiceException(message='TUSHARE_TOKEN未配置，无法校验接口')
+            pro = ts.pro_api(token)
+            for step in steps:
+                # 与任务执行器保持一致：停用步骤、开始/结束节点不做接口预检查
+                # （开始/结束节点不需要接口配置；停用步骤执行时会被跳过）
+                step_status = getattr(step, 'status', '0') or '0'
+                if step_status != '0':
+                    continue
+                step_node_type_raw = getattr(step, 'node_type', None)
+                step_node_type = (str(step_node_type_raw).strip().lower() if step_node_type_raw is not None else '')
+                # 兼容部分历史数据：node_type 为空但 step_name 为「开始/结束」
+                if not step_node_type:
+                    step_name = getattr(step, 'step_name', '') or ''
+                    if step_name in ['开始', '结束']:
+                        continue
+                    step_node_type = 'task'
+                if step_node_type in ['start', 'end']:
+                    continue
+
+                # task 节点必须存在 config_id
+                step_config_id = getattr(step, 'config_id', None)
+                if not step_config_id or int(step_config_id) <= 0:
+                    raise ServiceException(message=f'步骤「{step.step_name}」的接口配置不存在')
+
+                config = await TushareApiConfigDao.get_config_detail_by_id(query_db, int(step_config_id))
+                if not config:
+                    raise ServiceException(message=f'步骤「{step.step_name}」的接口配置不存在')
+                api_code = config.api_code or ''
+                api_func = getattr(pro, api_code, None) or getattr(ts, api_code, None)
+                if not api_func:
+                    raise ServiceException(message=f'步骤「{step.step_name}」的接口「{api_code}」不存在')
+        else:
+            # 单接口任务：校验接口配置与接口存在
+            config = await TushareApiConfigDao.get_config_detail_by_id(query_db, task.config_id)
+            if not config:
+                raise ServiceException(message='接口配置不存在')
+            api_code = config.api_code or ''
+            token = TushareConfig.tushare_token or os.getenv('TUSHARE_TOKEN', '')
+            if not token:
+                raise ServiceException(message='TUSHARE_TOKEN未配置，无法校验接口')
+            pro = ts.pro_api(token)
+            api_func = getattr(pro, api_code, None) or getattr(ts, api_code, None)
+            if not api_func:
+                raise ServiceException(message=f'接口「{api_code}」不存在')
+
         try:
             # 异步执行任务（使用同步包装函数，在后台线程中执行）
             import threading
             import traceback
-            
+
             def run_task():
                 try:
                     download_tushare_data_sync(task_id)

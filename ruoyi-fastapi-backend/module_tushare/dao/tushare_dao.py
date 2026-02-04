@@ -824,34 +824,50 @@ class TushareDataDao:
         try:
             if DataBaseConfig.db_type == 'postgresql':
                 # PostgreSQL: 检查唯一约束或唯一索引
-                # 方法：检查约束的列名是否完全匹配（不区分顺序）
+                # 注意：CREATE UNIQUE INDEX 创建的是索引（在 pg_index），不是约束（pg_constraint）
+                # 两者都支持 ON CONFLICT，需同时检查
                 columns_sorted = sorted(columns)
-                
-                # 构建列名数组的字符串表示（用于 SQL 比较）
-                # 注意：这里使用字符串拼接是因为 PostgreSQL 数组字面量需要特殊格式
                 columns_array_str = '{' + ','.join([f'"{col}"' for col in columns_sorted]) + '}'
-                
-                # 查询所有唯一约束，然后检查列名是否匹配
-                # 使用 f-string 是因为 PostgreSQL 数组字面量不能通过参数绑定
+
+                # 1) 检查 pg_constraint 中的唯一约束
+                # 2) 检查 pg_index 中的唯一索引（CREATE UNIQUE INDEX 创建的不在 pg_constraint 中）
                 check_sql = f"""
-                    SELECT EXISTS (
-                        SELECT 1
-                        FROM pg_constraint c
-                        JOIN pg_class t ON c.conrelid = t.oid
-                        JOIN pg_namespace n ON t.relnamespace = n.oid
-                        WHERE n.nspname = 'public'
-                        AND t.relname = :table_name
-                        AND c.contype = 'u'
-                        AND array_length(c.conkey, 1) = :col_count
-                        AND (
-                            SELECT array_agg(a.attname::text ORDER BY a.attname)
-                            FROM pg_attribute a
-                            WHERE a.attrelid = c.conrelid
-                            AND a.attnum = ANY(c.conkey)
-                        ) = '{columns_array_str}'::text[]
+                    SELECT (
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM pg_constraint c
+                            JOIN pg_class t ON c.conrelid = t.oid
+                            JOIN pg_namespace n ON t.relnamespace = n.oid
+                            WHERE n.nspname = 'public'
+                            AND t.relname = :table_name
+                            AND c.contype = 'u'
+                            AND array_length(c.conkey, 1) = :col_count
+                            AND (
+                                SELECT array_agg(a.attname::text ORDER BY a.attname)
+                                FROM pg_attribute a
+                                WHERE a.attrelid = c.conrelid
+                                AND a.attnum = ANY(c.conkey)
+                            ) = '{columns_array_str}'::text[]
+                        )
+                        OR EXISTS (
+                            SELECT 1
+                            FROM pg_index i
+                            JOIN pg_class t ON i.indrelid = t.oid
+                            JOIN pg_namespace n ON t.relnamespace = n.oid
+                            WHERE n.nspname = 'public'
+                            AND t.relname = :table_name
+                            AND i.indisunique = true
+                            AND (
+                                SELECT array_agg(a.attname::text ORDER BY a.attname)
+                                FROM pg_attribute a
+                                WHERE a.attrelid = i.indrelid
+                                AND a.attnum = ANY(i.indkey)
+                                AND a.attnum > 0
+                            ) = '{columns_array_str}'::text[]
+                        )
                     )
                 """
-                
+
                 result = await db.execute(
                     text(check_sql),
                     {
@@ -861,7 +877,7 @@ class TushareDataDao:
                 )
                 exists = result.scalar()
                 result_bool = bool(exists) if exists is not None else False
-                logger.debug(f'表 {table_name} 唯一约束检查: 字段 {columns} -> {result_bool}')
+                logger.debug(f'表 {table_name} 唯一约束/索引检查: 字段 {columns} -> {result_bool}')
                 return result_bool
             else:
                 # MySQL: 检查唯一索引
@@ -894,6 +910,110 @@ class TushareDataDao:
         except Exception as e:
             logger.warning(f'检查表 {table_name} 的唯一约束时出错: {e}，假设不存在')
             return False
+
+    @classmethod
+    async def ensure_unique_index(
+        cls, db: AsyncSession, table_name: str, unique_key_fields: list[str]
+    ) -> None:
+        """
+        确保表在指定列上存在唯一索引；若不存在则创建。
+        用于 INSERT_IGNORE / UPSERT / DELETE_INSERT 等模式执行前保证唯一约束存在。
+
+        :param db: 数据库会话
+        :param table_name: 表名
+        :param unique_key_fields: 唯一键列名列表
+        :return: None
+        """
+        from sqlalchemy import text
+        from config.env import DataBaseConfig
+        from utils.log_util import logger
+        import re
+
+        if not unique_key_fields or len(unique_key_fields) == 0:
+            return
+
+        # 校验表名、列名（防 SQL 注入）
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
+            logger.warning(f'ensure_unique_index: 无效的表名 {table_name}，跳过创建唯一索引')
+            return
+        for col in unique_key_fields:
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col):
+                logger.warning(f'ensure_unique_index: 无效的列名 {col}，跳过创建唯一索引')
+                return
+
+        try:
+            # 检查表是否存在
+            if DataBaseConfig.db_type == 'postgresql':
+                check_sql = """
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                        AND table_name = :table_name
+                    )
+                """
+            else:
+                check_sql = """
+                    SELECT COUNT(*) > 0
+                    FROM information_schema.tables
+                    WHERE table_schema = DATABASE()
+                    AND table_name = :table_name
+                """
+            result = await db.execute(text(check_sql), {'table_name': table_name})
+            table_exists = result.scalar() if DataBaseConfig.db_type == 'postgresql' else result.scalar() > 0
+            if not table_exists:
+                logger.debug(f'ensure_unique_index: 表 {table_name} 不存在，跳过创建唯一索引（由 ensure_table_exists 负责建表）')
+                return
+
+            # 检查表中是否包含 unique_key_fields 中的每一列
+            if DataBaseConfig.db_type == 'postgresql':
+                cols_sql = """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                    AND table_name = :table_name
+                """
+            else:
+                cols_sql = """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                    AND table_name = :table_name
+                """
+            result = await db.execute(text(cols_sql), {'table_name': table_name})
+            existing_columns = {row[0] for row in result.fetchall()}
+            missing = [c for c in unique_key_fields if c not in existing_columns]
+            if missing:
+                logger.warning(
+                    f'ensure_unique_index: 表 {table_name} 中不存在列 {missing}，跳过创建唯一索引'
+                )
+                return
+
+            # 若已存在唯一约束则直接返回
+            if await cls._check_unique_constraint_exists(db, table_name, unique_key_fields):
+                logger.debug(f'表 {table_name} 在字段 {unique_key_fields} 上已有唯一约束，无需创建')
+                return
+
+            # 生成索引名：uk_<table>_<col1>_<col2>_...，长度限制 PostgreSQL 63、MySQL 64
+            max_len = 63 if DataBaseConfig.db_type == 'postgresql' else 64
+            index_name = 'uk_' + table_name + '_' + '_'.join(unique_key_fields)
+            if len(index_name) > max_len:
+                index_name = index_name[:max_len]
+
+            if DataBaseConfig.db_type == 'postgresql':
+                # 使用 IF NOT EXISTS 避免索引已存在时导致事务中止（DuplicateTableError）
+                table_escaped = f'"{table_name}"'
+                cols_escaped = ', '.join([f'"{c}"' for c in unique_key_fields])
+                create_sql = f'CREATE UNIQUE INDEX IF NOT EXISTS "{index_name}" ON {table_escaped} ({cols_escaped})'
+            else:
+                table_escaped = f'`{table_name}`'
+                cols_escaped = ', '.join([f'`{c}`' for c in unique_key_fields])
+                create_sql = f'CREATE UNIQUE INDEX `{index_name}` ON {table_escaped} ({cols_escaped})'
+
+            await db.execute(text(create_sql))
+            await db.flush()
+            logger.info(f'已为表 {table_name} 在字段 {unique_key_fields} 上创建唯一索引: {index_name}')
+        except Exception as e:
+            logger.warning(f'ensure_unique_index: 为表 {table_name} 创建唯一索引失败: {e}')
 
     @classmethod
     async def add_dataframe_to_table_dao(
@@ -972,6 +1092,10 @@ class TushareDataDao:
         if update_mode in ['2', '3'] and not unique_key_fields:
             logger.warning(f'更新模式 {update_mode} 需要唯一键字段，但未找到。将使用普通 INSERT 模式')
             update_mode = '0'
+
+        # 若为需要唯一键的更新模式，确保表上存在对应唯一索引（无则创建）
+        if update_mode in ('1', '2', '3') and unique_key_fields:
+            await cls.ensure_unique_index(db, table_name, unique_key_fields)
 
         # 准备批量插入数据
         values_list = []
