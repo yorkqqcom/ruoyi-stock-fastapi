@@ -95,7 +95,6 @@ create index idx_factor_calc_log_time on factor_calc_log (create_time);
 insert into sys_menu values(3000, '因子管理', 0, 2, 'factor', null, '', '', 1, 0, 'M', '0', '0', '', 'build', 'admin', current_timestamp, '', null, '因子管理目录');
 insert into sys_menu values(3001, '因子定义', 3000, 1, 'definition', 'factor/definition/index', '', '', 1, 0, 'C', '0', '0', 'factor:definition:list', 'list', 'admin', current_timestamp, '', null, '因子定义菜单');
 insert into sys_menu values(3002, '因子任务', 3000, 2, 'task', 'factor/task/index', '', '', 1, 0, 'C', '0', '0', 'factor:task:list', 'job', 'admin', current_timestamp, '', null, '因子任务菜单');
-insert into sys_menu values(3003, '因子结果', 3000, 3, 'value', 'factor/value/index', '', '', 1, 0, 'C', '0', '0', 'factor:value:list', 'excel', 'admin', current_timestamp, '', null, '因子结果查询菜单');
 insert into sys_menu values(3100, '因子定义查询', 3001, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:definition:list', '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(3101, '因子定义新增', 3001, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:definition:add', '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(3102, '因子定义修改', 3001, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:definition:edit', '#', 'admin', current_timestamp, '', null, '');
@@ -106,7 +105,6 @@ insert into sys_menu values(3112, '因子任务修改', 3002, 3, '', '', '', '',
 insert into sys_menu values(3113, '因子任务删除', 3002, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:task:remove', '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(3114, '因子任务状态修改', 3002, 5, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:task:changeStatus', '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(3115, '因子任务执行', 3002, 6, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:task:execute', '#', 'admin', current_timestamp, '', null, '');
-insert into sys_menu values(3120, '因子结果查询', 3003, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:value:list', '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(3004, '因子计算日志', 3000, 4, 'calcLog', 'factor/calcLog/index', '', '', 1, 0, 'C', '0', '0', 'factor:calcLog:list', 'log', 'admin', current_timestamp, '', null, '因子计算日志菜单');
 insert into sys_menu values(3121, '因子计算日志查询', 3004, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:calcLog:list', '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(3116, '因子计算日志查看', 3002, 7, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:calcLog:list', '#', 'admin', current_timestamp, '', null, '');
