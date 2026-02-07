@@ -22,7 +22,7 @@ class FactorCalcService:
       - 日期列：`trade_date`（YYYYMMDD）
       - 代码列：默认 `ts_code`，可在因子 `params` JSON 中通过 `{"symbol_col":"ts_code"}` 覆盖；
     - `expr` 为基于 pandas 的表达式，返回 `pd.Series`，索引与行情 DataFrame 对齐；
-    - 结果写入 `factor_value` 窄表。
+    - 结果写入 `feature_data` 表。
     """
 
     @classmethod
@@ -386,7 +386,7 @@ class FactorCalcService:
                 )
                 await FactorCalcLogDao.add_log_dao(db, log)
             except Exception as exc:  # noqa: BLE001
-                # 记录错误，但不影响前面 factor_value 插入的提交
+                # 记录错误，但不影响前面 feature_data 插入的提交
                 logger.exception('写入因子计算日志失败: %s', exc)
 
             # 无论日志是否写成功，都提交前面因子结果插入
@@ -570,7 +570,7 @@ class FactorCalcService:
 
         await FactorValueDao.bulk_insert_values_dao(db, records)
         logger.info(
-            '因子 %s 写入 factor_value 记录数: %s (表=%s, 区间=%s~%s)',
+            '因子 %s 写入 feature_data 记录数: %s (表=%s, 区间=%s~%s)',
             factor_code,
             len(records),
             table_name,

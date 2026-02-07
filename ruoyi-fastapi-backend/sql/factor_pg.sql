@@ -55,8 +55,8 @@ create table factor_task (
 );
 comment on table factor_task is '因子计算任务表';
 
-drop table if exists factor_value;
-create table factor_value (
+drop table if exists feature_data;
+create table feature_data (
   id                bigint          generated always as identity primary key,
   trade_date        varchar(20)     not null,
   symbol            varchar(50)     not null,
@@ -66,10 +66,10 @@ create table factor_value (
   calc_date         timestamp       default current_timestamp,
   extra             jsonb
 );
-comment on table factor_value is '因子结果表（窄表）';
-create index idx_factor_value_main on factor_value (trade_date, factor_code, symbol);
-create index idx_factor_value_task on factor_value (task_id);
-create index idx_factor_value_calc_date on factor_value (calc_date);
+comment on table feature_data is '特征数据表（因子计算结果，窄表）';
+create index idx_feature_data_main on feature_data (trade_date, factor_code, symbol);
+create index idx_feature_data_task on feature_data (task_id);
+create index idx_feature_data_calc_date on feature_data (calc_date);
 
 drop table if exists factor_calc_log;
 create table factor_calc_log (

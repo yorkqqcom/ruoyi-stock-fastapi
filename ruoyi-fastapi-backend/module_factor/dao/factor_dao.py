@@ -665,7 +665,7 @@ class ModelDataDao:
         end_date: str,
     ) -> list[dict[str, Any]]:
         """
-        获取训练数据：关联 factor_value 和 tushare_pro_bar 表
+        获取训练数据：关联 feature_data 和 tushare_pro_bar 表
 
         :param db: orm对象
         :param factor_codes: 因子代码列表

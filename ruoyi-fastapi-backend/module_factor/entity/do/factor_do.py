@@ -68,11 +68,11 @@ class FactorTask(Base):
 
 class FactorValue(Base):
     """
-    因子结果表（窄表）
+    特征数据表（因子计算结果，窄表）
     """
 
-    __tablename__ = 'factor_value'
-    __table_args__ = {'comment': '因子结果表（窄表）'}
+    __tablename__ = 'feature_data'
+    __table_args__ = {'comment': '特征数据表（因子计算结果，窄表）'}
 
     id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='主键ID')
     trade_date = Column(String(20), nullable=False, comment='交易日期（YYYYMMDD）')

@@ -57,9 +57,9 @@ create table factor_task (
   unique key uk_factor_task_name (task_name)
 ) engine=innodb auto_increment=1 comment = '因子计算任务表';
 
--- 3、因子结果表（窄表）
-drop table if exists factor_value;
-create table factor_value (
+-- 3、特征数据表（因子计算结果，窄表）
+drop table if exists feature_data;
+create table feature_data (
   id                bigint(20)      not null auto_increment    comment '主键ID',
   trade_date        varchar(20)     not null                   comment '交易日期（YYYYMMDD）',
   symbol            varchar(50)     not null                   comment '证券代码',
@@ -69,10 +69,10 @@ create table factor_value (
   calc_date         datetime        default current_timestamp  comment '计算时间',
   extra             json                                       comment '附加信息（JSON格式）',
   primary key (id),
-  key idx_factor_value_main (trade_date, factor_code, symbol),
-  key idx_factor_value_task (task_id),
-  key idx_factor_value_calc_date (calc_date)
-) engine=innodb auto_increment=1 comment = '因子结果表（窄表）';
+  key idx_feature_data_main (trade_date, factor_code, symbol),
+  key idx_feature_data_task (task_id),
+  key idx_feature_data_calc_date (calc_date)
+) engine=innodb auto_increment=1 comment = '特征数据表（因子计算结果，窄表）';
 
 -- 4、因子计算日志表
 drop table if exists factor_calc_log;
