@@ -87,9 +87,9 @@ create index idx_model_scene_binding_result on model_scene_binding (result_id);
 
 -- ========== 2. 菜单 ==========
 
-insert into sys_menu values(4000, '模型管理', 0, 7, 'model', null, '', '', 1, 0, 'M', '0', '0', '', 'tree-table', 'admin', current_timestamp, '', null, '模型管理目录');
-insert into sys_menu values(3999, '因子配置文件', 4000, 0, 'config', 'factor/model/config/index', '', '', 1, 0, 'C', '0', '0', 'factor:model:config:list', 'list', 'admin', current_timestamp, '', null, '因子配置文件菜单');
-insert into sys_menu values(4001, '模型训练任务', 4000, 1, 'task', 'factor/model/task/index', '', '', 1, 0, 'C', '0', '0', 'factor:model:task:list', 'tree', 'admin', current_timestamp, '', null, '模型训练任务菜单');
+insert into sys_menu values(4000, '模型管理', 0, 3, 'model', null, '', '', 1, 0, 'M', '0', '0', '', 'tree-table', 'admin', current_timestamp, '', null, '模型管理目录');
+insert into sys_menu values(3999, '因子配置文件', 4000, 0, 'modelconfig', 'factor/model/config/index', '', '', 1, 0, 'C', '0', '0', 'factor:model:config:list', 'list', 'admin', current_timestamp, '', null, '因子配置文件菜单');
+insert into sys_menu values(4001, '模型训练任务', 4000, 1, 'modeltask', 'factor/model/task/index', '', '', 1, 0, 'C', '0', '0', 'factor:model:task:list', 'tree', 'admin', current_timestamp, '', null, '模型训练任务菜单');
 insert into sys_menu values(4002, '模型训练结果', 4000, 2, 'result', 'factor/model/result/index', '', '', 1, 0, 'C', '0', '0', 'factor:model:result:list', 'chart', 'admin', current_timestamp, '', null, '模型训练结果菜单');
 insert into sys_menu values(4003, '模型预测结果', 4000, 3, 'predict', 'factor/model/predict/index', '', '', 1, 0, 'C', '0', '0', 'factor:model:predict:list', 'eye', 'admin', current_timestamp, '', null, '模型预测结果菜单');
 insert into sys_menu values(4009, '因子配置文件查询', 3999, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'factor:model:config:list', '#', 'admin', current_timestamp, '', null, '');
@@ -111,7 +111,7 @@ INSERT INTO model_train_task (
 ) VALUES (
     '技术指标模型训练示例',
     'technical_ema_10,technical_ema_5,technical_sma_10,technical_sma_5',
-    NULL, '20230101', '20231231',
+    NULL, '20250101', '20251231',
     '{"n_estimators": 100, "max_depth": 10, "min_samples_split": 2, "random_state": 42}',
     0.8, '0', '使用EMA和SMA技术指标训练随机森林模型，预测未来1天的涨跌方向',
     'admin', CURRENT_TIMESTAMP, 'admin', CURRENT_TIMESTAMP
@@ -123,7 +123,7 @@ INSERT INTO model_train_task (
 ) VALUES (
     '指定股票技术指标模型训练',
     'technical_ema_10,technical_ema_5,technical_sma_10,technical_sma_5',
-    '["000001.SZ","000002.SZ","600000.SH","600036.SH"]', '20230101', '20231231',
+    '["000001.SZ","000002.SZ","600000.SH","600036.SH"]', '20250101', '20251231',
     '{"n_estimators": 200, "max_depth": 15, "min_samples_split": 5, "min_samples_leaf": 2, "random_state": 42}',
     0.75, '0', '针对特定股票池训练模型，使用更多树和更深的深度',
     'admin', CURRENT_TIMESTAMP, 'admin', CURRENT_TIMESTAMP
@@ -135,7 +135,7 @@ INSERT INTO model_train_task (
 ) VALUES (
     '多因子组合模型训练',
     'technical_ema_10,technical_ema_5,technical_sma_10,technical_sma_5',
-    NULL, '20220101', '20231231',
+    NULL, '20250101', '20251231',
     '{"n_estimators": 150, "max_depth": 12, "min_samples_split": 3, "max_features": "sqrt", "random_state": 42}',
     0.8, '0', '使用多因子组合，增加特征随机性以提高模型泛化能力',
     'admin', CURRENT_TIMESTAMP, 'admin', CURRENT_TIMESTAMP
