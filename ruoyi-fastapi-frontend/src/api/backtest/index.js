@@ -20,11 +20,36 @@ export function listBacktestTask(query) {
   })
 }
 
+// 执行/重新执行回测任务
+export function executeBacktestTask(taskId) {
+  return request({
+    url: `/backtest/task/execute/${taskId}`,
+    method: 'post'
+  })
+}
+
 // 获取回测任务详情
 export function getBacktestTaskDetail(taskId) {
   return request({
     url: `/backtest/task/detail/${taskId}`,
     method: 'get'
+  })
+}
+
+// 更新回测任务
+export function updateBacktestTask(taskId, data) {
+  return request({
+    url: `/backtest/task/${taskId}`,
+    method: 'put',
+    data: data
+  })
+}
+
+// 删除回测任务
+export function deleteBacktestTask(taskId) {
+  return request({
+    url: `/backtest/task/${taskId}`,
+    method: 'delete'
   })
 }
 

@@ -1,7 +1,8 @@
+import time
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import Select, desc, func, select, update
+from sqlalchemy import Select, delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
@@ -9,6 +10,7 @@ from module_backtest.entity.do.backtest_do import BacktestNav, BacktestResult, B
 from module_backtest.entity.vo.backtest_vo import (
     BacktestTaskModel,
     BacktestTaskPageQueryModel,
+    BacktestTaskUpdateRequestModel,
     BacktestTradePageQueryModel,
 )
 from module_factor.entity.do.factor_do import ModelPredictResult
@@ -24,12 +26,58 @@ class BacktestTaskDao:
     """
 
     @classmethod
-    async def create_task(cls, db: AsyncSession, task_model: BacktestTaskModel) -> BacktestTask:
-        """创建回测任务"""
-        db_obj = BacktestTask(**task_model.model_dump(exclude={'id'}))
+    async def create_task(
+        cls,
+        db: AsyncSession,
+        task_model: BacktestTaskModel,
+        task_name: str,
+        start_date: str,
+        end_date: str,
+    ) -> BacktestTask:
+        """创建回测任务。task_name/start_date/end_date 由 Service 校验后显式传入。
+        model_scene_binding_id / predict_task_id / result_id 不做任何兜底覆盖，仅使用 task_model 传入值。"""
+        row = {
+            'task_name': task_name.strip(),
+            'scene_code': task_model.scene_code or 'backtest',
+            'model_scene_binding_id': task_model.model_scene_binding_id,
+            'predict_task_id': task_model.predict_task_id,
+            'result_id': task_model.result_id,
+            'symbol_list': task_model.symbol_list if task_model.symbol_list is not None else '',
+            'start_date': start_date.strip(),
+            'end_date': end_date.strip(),
+            'initial_cash': task_model.initial_cash,
+            'max_position': task_model.max_position,
+            'commission_rate': task_model.commission_rate,
+            'slippage_bp': task_model.slippage_bp,
+            'signal_source_type': task_model.signal_source_type,
+            'signal_buy_threshold': task_model.signal_buy_threshold,
+            'signal_sell_threshold': task_model.signal_sell_threshold,
+            'position_mode': task_model.position_mode,
+            'status': task_model.status or '0',
+            'progress': task_model.progress if task_model.progress is not None else 0,
+            'error_msg': task_model.error_msg,
+            'remark': task_model.remark,
+            'create_by': task_model.create_by,
+            'create_time': task_model.create_time,
+            'update_by': task_model.update_by,
+            'update_time': task_model.update_time,
+        }
+        logger.info('[BacktestTaskDao] create_task row: {}', row)
+        db_obj = BacktestTask(**row)
+        # 强制写入关键字段，避免 ORM/server_default 或会话缓存导致入库为 None/默认值
+        db_obj.result_id = task_model.result_id
+        db_obj.signal_source_type = task_model.signal_source_type
+        db_obj.model_scene_binding_id = task_model.model_scene_binding_id
+        db_obj.predict_task_id = task_model.predict_task_id
         db.add(db_obj)
         await db.flush()
         await db.refresh(db_obj)
+        logger.info(
+            '[BacktestTask] create_task 已持久化 id={} result_id={} signal_source_type={}',
+            db_obj.id,
+            db_obj.result_id,
+            db_obj.signal_source_type,
+        )
         return db_obj
 
     @classmethod
@@ -50,6 +98,49 @@ class BacktestTaskDao:
         stmt = update(BacktestTask).where(BacktestTask.id == task_id).values(**update_dict)
         await db.execute(stmt)
         await db.flush()
+
+    @classmethod
+    async def update_task(
+        cls, db: AsyncSession, task_id: int, update_model: BacktestTaskUpdateRequestModel
+    ) -> bool:
+        """更新回测任务（仅更新传入的非空字段）"""
+        update_dict = {}
+        if update_model.task_name is not None:
+            update_dict['task_name'] = (update_model.task_name or '').strip() or None
+        if update_model.model_scene_binding_id is not None:
+            update_dict['model_scene_binding_id'] = update_model.model_scene_binding_id
+        if update_model.predict_task_id is not None:
+            update_dict['predict_task_id'] = update_model.predict_task_id
+        if update_model.result_id is not None:
+            update_dict['result_id'] = update_model.result_id
+        if update_model.symbol_list is not None:
+            update_dict['symbol_list'] = update_model.symbol_list
+        if update_model.start_date is not None:
+            update_dict['start_date'] = update_model.start_date
+        if update_model.end_date is not None:
+            update_dict['end_date'] = update_model.end_date
+        if update_model.initial_cash is not None:
+            update_dict['initial_cash'] = update_model.initial_cash
+        if update_model.max_position is not None:
+            update_dict['max_position'] = update_model.max_position
+        if update_model.commission_rate is not None:
+            update_dict['commission_rate'] = update_model.commission_rate
+        if update_model.slippage_bp is not None:
+            update_dict['slippage_bp'] = update_model.slippage_bp
+        if update_model.signal_source_type is not None:
+            update_dict['signal_source_type'] = update_model.signal_source_type
+        if update_model.signal_buy_threshold is not None:
+            update_dict['signal_buy_threshold'] = update_model.signal_buy_threshold
+        if update_model.signal_sell_threshold is not None:
+            update_dict['signal_sell_threshold'] = update_model.signal_sell_threshold
+        if update_model.position_mode is not None:
+            update_dict['position_mode'] = update_model.position_mode
+        if not update_dict:
+            return False
+        stmt = update(BacktestTask).where(BacktestTask.id == task_id).values(**update_dict)
+        await db.execute(stmt)
+        await db.flush()
+        return True
 
     @classmethod
     def _build_task_query(cls, query_object: BacktestTaskPageQueryModel) -> Select[tuple[BacktestTask]]:
@@ -80,6 +171,16 @@ class BacktestTaskDao:
         else:
             result = CamelCaseUtil.transform_result(result)
         return result
+
+    @classmethod
+    async def delete_task(cls, db: AsyncSession, task_id: int) -> bool:
+        """删除回测任务及其关联数据（交易明细、净值、结果、任务）"""
+        await db.execute(delete(BacktestTrade).where(BacktestTrade.task_id == task_id))
+        await db.execute(delete(BacktestNav).where(BacktestNav.task_id == task_id))
+        await db.execute(delete(BacktestResult).where(BacktestResult.task_id == task_id))
+        result = await db.execute(delete(BacktestTask).where(BacktestTask.id == task_id))
+        await db.flush()
+        return result.rowcount > 0
 
 
 class BacktestKlineDao:

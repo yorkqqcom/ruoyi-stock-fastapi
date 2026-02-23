@@ -234,6 +234,19 @@ class Log:
                 request.state._cached_json_body = json_body if json_body is not None else {}
             except Exception:
                 pass
+            # 替换 scope.receive 与 request._receive，使后续控制器/FastAPI 再次读 body 时能拿到同一份数据（流只能消费一次）
+            # Starlette Request 在构造时把 receive 存为 self._receive，body() 用的是 self._receive()，故必须同时替换
+            cached_bytes = body_bytes
+            async def _receive():
+                return {'type': 'http.request', 'body': cached_bytes, 'more_body': False}
+            request.scope['receive'] = _receive
+            if hasattr(request, '_receive'):
+                request._receive = _receive
+            # 清除已消费的 _body/_stream_consumed，让下次 body() 通过新的 _receive 重新读取
+            if hasattr(request, '_body'):
+                del request._body
+            if hasattr(request, '_stream_consumed'):
+                request._stream_consumed = False
 
         # 表单数据
         elif 'multipart/form-data' in content_type or 'application/x-www-form-urlencoded' in content_type:

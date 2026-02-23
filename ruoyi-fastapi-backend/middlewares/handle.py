@@ -18,3 +18,4 @@ def handle_middleware(app: FastAPI) -> None:
     add_gzip_middleware(app)
     # 加载trace中间件
     add_trace_middleware(app)
+    # Body 缓存中间件已移除：由 FastAPI 单次读取 Body，避免与 Log 双读导致解析不一致；oper_log 中 JSON POST 的请求体将不再记录

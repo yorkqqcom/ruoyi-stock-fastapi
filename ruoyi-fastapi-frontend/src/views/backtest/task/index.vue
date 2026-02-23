@@ -88,6 +88,31 @@
               v-hasPermi="['backtest:task:query']"
             />
           </el-tooltip>
+          <el-tooltip content="编辑" placement="top" v-if="scope.row.status === '0' || scope.row.status === '3'">
+            <el-button
+              link
+              type="primary"
+              icon="Edit"
+              @click="handleEdit(scope.row)"
+              v-hasPermi="['backtest:task:create']"
+            />
+          </el-tooltip>
+          <el-tooltip
+            :content="getExecuteTooltip(scope.row)"
+            placement="top"
+            v-if="scope.row.status === '0' || scope.row.status === '3'"
+          >
+            <span>
+              <el-button
+                link
+                type="warning"
+                icon="VideoPlay"
+                :disabled="isTaskWithoutModel(scope.row)"
+                @click="handleExecute(scope.row)"
+                v-hasPermi="['backtest:task:create']"
+              />
+            </span>
+          </el-tooltip>
           <el-tooltip content="查看结果" placement="top" v-if="scope.row.status === '2'">
             <el-button
               link
@@ -95,6 +120,15 @@
               icon="DataAnalysis"
               @click="handleViewResult(scope.row)"
               v-hasPermi="['backtest:result:query']"
+            />
+          </el-tooltip>
+          <el-tooltip content="删除" placement="top">
+            <el-button
+              link
+              type="danger"
+              icon="Delete"
+              @click="handleDelete(scope.row)"
+              v-hasPermi="['backtest:task:remove']"
             />
           </el-tooltip>
         </template>
@@ -109,88 +143,124 @@
       @pagination="getList"
     />
 
-    <!-- 添加回测任务对话框 -->
-    <el-dialog :title="title" v-model="open" width="900px" append-to-body>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
-        <el-form-item label="任务名称" prop="taskName">
-          <el-input v-model="form.taskName" placeholder="请输入任务名称" />
-        </el-form-item>
-        <el-form-item label="信号来源" prop="signalSourceType">
-          <el-select v-model="form.signalSourceType" placeholder="请选择信号来源" @change="onSignalSourceChange">
-            <el-option label="预测表（离线）" value="predict_table" />
-            <el-option label="在线模型" value="online_model" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="选择模型" prop="resultId" v-if="form.signalSourceType">
-          <el-select v-model="form.resultId" placeholder="请选择训练结果" filterable style="width: 100%">
-            <el-option
-              v-for="item in modelResultList"
-              :key="item.id"
-              :label="`${item.taskName} (v${item.version}) | Acc ${item.accuracy ? (item.accuracy * 100).toFixed(1) : 'N/A'}%`"
-              :value="item.id"
+    <!-- 添加/编辑回测任务对话框 -->
+    <el-dialog :title="title" v-model="open" width="980px" append-to-body>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="backtest-form">
+        <!-- 基础信息 -->
+        <div class="form-section">
+          <div class="form-section-title">基础信息</div>
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="任务名称" prop="taskName">
+                <el-input v-model="form.taskName" placeholder="请输入任务名称" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="信号来源" prop="signalSourceType">
+                <el-select v-model="form.signalSourceType" placeholder="请选择信号来源" @change="onSignalSourceChange" style="width: 100%">
+                  <el-option label="预测表（离线）" value="predict_table" />
+                  <el-option label="在线模型" value="online_model" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item label="选择模型" prop="resultId" v-if="form.signalSourceType">
+            <el-select v-model="form.resultId" placeholder="请选择训练结果" filterable style="width: 100%">
+              <el-option
+                v-for="item in modelResultList"
+                :key="item.id"
+                :label="`${item.taskName} (v${item.version}) | Acc ${item.accuracy ? (item.accuracy * 100).toFixed(1) : 'N/A'}%`"
+                :value="item.id"
+              />
+            </el-select>
+            <div class="form-hint">仅展示训练成功的模型结果</div>
+          </el-form-item>
+          <el-form-item label="标的列表" prop="symbolList">
+            <el-input
+              v-model="form.symbolList"
+              type="textarea"
+              :rows="2"
+              placeholder="留空表示全部可用个股；如需限制范围，请输入股票代码（逗号分隔），例如：000001.SZ,000002.SZ"
             />
-          </el-select>
-          <span style="margin-left: 10px; color: #909399;">仅展示训练成功的模型结果</span>
-        </el-form-item>
-        <el-form-item label="标的列表" prop="symbolList">
-          <el-input
-            v-model="form.symbolList"
-            type="textarea"
-            :rows="3"
-            placeholder="留空表示全部可用个股；如需限制范围，请输入股票代码（逗号分隔），例如：000001.SZ,000002.SZ"
-          />
-          <span style="margin-top: 4px; display: block; color: #909399; font-size: 12px;">
-            若不填写，则自动根据模型在所选日期范围内可用的数据回测全部相关个股。
-          </span>
-        </el-form-item>
-        <el-form-item label="回测区间" prop="startDate">
-          <el-col :span="11">
-            <el-form-item prop="startDate">
-              <el-date-picker
-                v-model="form.startDate"
-                type="date"
-                placeholder="开始日期"
-                format="YYYYMMDD"
-                value-format="YYYYMMDD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="2" class="text-center">
-            <span class="text-gray-500">-</span>
-          </el-col>
-          <el-col :span="11">
-            <el-form-item prop="endDate">
-              <el-date-picker
-                v-model="form.endDate"
-                type="date"
-                placeholder="结束日期"
-                format="YYYYMMDD"
-                value-format="YYYYMMDD"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-        </el-form-item>
-        <el-form-item label="初始资金" prop="initialCash">
-          <el-input-number v-model="form.initialCash" :min="1000" :step="10000" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="最大仓位" prop="maxPosition">
-          <el-input-number v-model="form.maxPosition" :min="0" :max="1" :step="0.1" style="width: 100%" />
-          <span style="margin-left: 10px; color: #909399;">0~1，1表示满仓</span>
-        </el-form-item>
-        <el-form-item label="手续费率" prop="commissionRate">
-          <el-input-number v-model="form.commissionRate" :min="0" :max="0.01" :step="0.0001" style="width: 100%" />
-          <span style="margin-left: 10px; color: #909399;">默认0.0003（万三）</span>
-        </el-form-item>
-        <el-form-item label="买入阈值" prop="signalBuyThreshold">
-          <el-input-number v-model="form.signalBuyThreshold" :min="0" :max="1" :step="0.1" style="width: 100%" />
-          <span style="margin-left: 10px; color: #909399;">predict_prob需大于此值才买入</span>
-        </el-form-item>
-        <el-form-item label="卖出阈值" prop="signalSellThreshold">
-          <el-input-number v-model="form.signalSellThreshold" :min="0" :max="1" :step="0.1" style="width: 100%" />
-          <span style="margin-left: 10px; color: #909399;">predict_prob需小于此值才卖出</span>
-        </el-form-item>
+            <div class="form-hint">
+              <template v-if="form.signalSourceType === 'online_model'">
+                在线模式下留空表示使用当日 K 线中的全部标的；仅同时具备 K 线与因子数据的标的会产生信号。
+              </template>
+              <template v-else>
+                若不填写，则自动根据模型在所选日期范围内可用的数据回测全部相关个股。
+              </template>
+            </div>
+          </el-form-item>
+        </div>
+
+        <!-- 回测区间与资金 -->
+        <div class="form-section">
+          <div class="form-section-title">回测区间与资金</div>
+          <el-row :gutter="20">
+            <el-col :span="8">
+              <el-form-item label="开始日期" prop="startDate">
+                <el-date-picker
+                  v-model="form.startDate"
+                  type="date"
+                  placeholder="开始日期"
+                  format="YYYYMMDD"
+                  value-format="YYYYMMDD"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="结束日期" prop="endDate">
+                <el-date-picker
+                  v-model="form.endDate"
+                  type="date"
+                  placeholder="结束日期"
+                  format="YYYYMMDD"
+                  value-format="YYYYMMDD"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="8">
+              <el-form-item label="初始资金" prop="initialCash">
+                <el-input-number v-model="form.initialCash" :min="1000" :step="10000" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="最大仓位" prop="maxPosition">
+                <el-input-number v-model="form.maxPosition" :min="0" :max="1" :step="0.1" style="width: 100%" />
+                <div class="form-hint">0~1，1表示满仓</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="手续费率" prop="commissionRate">
+                <el-input-number v-model="form.commissionRate" :min="0" :max="0.01" :step="0.0001" style="width: 100%" />
+                <div class="form-hint">默认0.0003（万三）</div>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
+
+        <!-- 信号与阈值 -->
+        <div class="form-section">
+          <div class="form-section-title">信号与阈值</div>
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="买入阈值" prop="signalBuyThreshold">
+                <el-input-number v-model="form.signalBuyThreshold" :min="0" :max="1" :step="0.1" style="width: 100%" />
+                <div class="form-hint">predict_prob需大于此值才买入</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="卖出阈值" prop="signalSellThreshold">
+                <el-input-number v-model="form.signalSellThreshold" :min="0" :max="1" :step="0.1" style="width: 100%" />
+                <div class="form-hint">predict_prob需小于此值才卖出</div>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -203,7 +273,7 @@
 </template>
 
 <script setup name="BacktestTask">
-import { listBacktestTask, createBacktestTask, getBacktestTaskDetail } from '@/api/backtest/index'
+import { listBacktestTask, createBacktestTask, updateBacktestTask, executeBacktestTask, getBacktestTaskDetail, deleteBacktestTask } from '@/api/backtest/index'
 import { listModelTrainResult } from '@/api/factor/model'
 import { getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
@@ -218,6 +288,7 @@ const showSearch = ref(true)
 const total = ref(0)
 const title = ref('')
 const modelResultList = ref([])
+const formRef = ref(null)
 
 const data = reactive({
   form: {},
@@ -229,7 +300,23 @@ const data = reactive({
   },
   rules: {
     taskName: [{ required: true, message: '任务名称不能为空', trigger: 'blur' }],
-    resultId: [{ required: true, message: '请选择模型', trigger: 'change' }],
+    resultId: [
+      {
+        validator: (rule, value, callback) => {
+          const t = data.form.signalSourceType
+          if (t === 'predict_table' || t === 'online_model') {
+            if (value === undefined || value === null || value === '') {
+              callback(new Error('请选择模型（离线/在线模式必选）'))
+            } else {
+              callback()
+            }
+          } else {
+            callback()
+          }
+        },
+        trigger: 'change'
+      }
+    ],
     // symbolList 可为空，留空表示“全部可用个股”
     startDate: [{ required: true, message: '开始日期不能为空', trigger: 'change' }],
     endDate: [{ required: true, message: '结束日期不能为空', trigger: 'change' }],
@@ -284,6 +371,77 @@ function loadModelResultList() {
   })
 }
 
+/** 是否未配置模型（不可执行），与后端执行前校验规则一致 */
+function isTaskWithoutModel(row) {
+  if (!row) return true
+  const st = row.signalSourceType
+  const hasResultId = row.resultId != null && row.resultId !== '' && Number(row.resultId) > 0
+  const hasPredictTaskId = row.predictTaskId != null && row.predictTaskId !== '' && Number(row.predictTaskId) > 0
+  const hasModelSceneBindingId = row.modelSceneBindingId != null && row.modelSceneBindingId !== '' && Number(row.modelSceneBindingId) > 0
+  if (st === 'predict_table') return !hasResultId && !hasPredictTaskId
+  if (st === 'online_model') return !hasResultId && !hasModelSceneBindingId
+  return false
+}
+
+/** 执行按钮的提示文案：与后端错误消息保持一致，并给出修复建议 */
+function getExecuteTooltip(row) {
+  if (!row) return ''
+  if (isTaskWithoutModel(row)) {
+    if (row.signalSourceType === 'online_model') {
+      return '该任务未配置模型或场景绑定，无法执行。请删除后重新创建并选择模型。'
+    }
+    // 默认视为离线预测表模式
+    return '该任务未配置模型或预测任务，无法执行。请删除后重新创建并选择模型。'
+  }
+  return row.status === '3' ? '重新执行' : '执行'
+}
+
+/** 执行/重新执行 */
+function handleExecute(row) {
+  if (isTaskWithoutModel(row)) return
+  proxy.$modal.confirm(
+    row.status === '3' ? '是否重新执行该回测任务？' : '是否立即执行该回测任务？'
+  ).then(() => {
+    return executeBacktestTask(row.id)
+  }).then((response) => {
+    proxy.$modal.msgSuccess(response.msg || '已触发执行')
+    getList()
+  }).catch(() => {})
+}
+
+/** 编辑按钮操作 */
+function handleEdit(row) {
+  reset()
+  loadModelResultList()
+  getBacktestTaskDetail(row.id).then((response) => {
+    const d = response.data || response
+    const detailResultId = d.resultId
+    const normalizedResultId = detailResultId !== undefined && detailResultId !== null && detailResultId !== '' ? Number(detailResultId) : undefined
+    const normalizedPredictTaskId = d.predictTaskId !== undefined && d.predictTaskId !== null && d.predictTaskId !== '' ? Number(d.predictTaskId) : undefined
+    const normalizedModelSceneBindingId = d.modelSceneBindingId !== undefined && d.modelSceneBindingId !== null && d.modelSceneBindingId !== '' ? Number(d.modelSceneBindingId) : undefined
+    form.value = {
+      id: d.id,
+      taskName: d.taskName ?? '',
+      signalSourceType: d.signalSourceType ?? 'predict_table',
+      resultId: normalizedResultId,
+      predictTaskId: normalizedPredictTaskId,
+      modelSceneBindingId: normalizedModelSceneBindingId,
+      symbolList: d.symbolList ?? '',
+      startDate: d.startDate ?? '',
+      endDate: d.endDate ?? '',
+      initialCash: d.initialCash ?? 1000000,
+      maxPosition: d.maxPosition ?? 1.0,
+      commissionRate: d.commissionRate ?? 0.0003,
+      slippageBp: d.slippageBp ?? 0,
+      signalBuyThreshold: d.signalBuyThreshold ?? 0.6,
+      signalSellThreshold: d.signalSellThreshold ?? 0.4,
+      positionMode: d.positionMode ?? 'equal_weight'
+    }
+    title.value = '编辑回测任务'
+    open.value = true
+  }).catch(() => {})
+}
+
 /** 查看详情 */
 function handleView(row) {
   router.push(`/backtest/task/detail/${row.id}`)
@@ -294,20 +452,88 @@ function handleViewResult(row) {
   router.push(`/backtest/result/detail/${row.id}`)
 }
 
-/** 信号来源变化 */
+/** 删除 */
+function handleDelete(row) {
+  if (row.status === '1') {
+    proxy.$modal.msgWarning('任务正在执行中，请等待执行完成后再删除')
+    return
+  }
+  proxy.$modal.confirm('是否确认删除该回测任务？删除后将同时删除其关联的交易明细、净值与结果数据。').then(() => {
+    return deleteBacktestTask(row.id)
+  }).then((response) => {
+    proxy.$modal.msgSuccess(response.msg || '删除成功')
+    getList()
+  }).catch(() => {})
+}
+
+/** 信号来源变化时重新校验「选择模型」 */
 function onSignalSourceChange() {
-  // 可以在这里添加逻辑
+  formRef.value?.validateField('resultId', () => {})
+}
+
+/** 将表单中的 ID 转为数字或 null，与后端 VO 类型一致 */
+function toOptionalId(v) {
+  if (v === undefined || v === null || v === '') return null
+  const n = Number(v)
+  return Number.isNaN(n) ? null : n
 }
 
 /** 提交按钮 */
 function submitForm() {
-  proxy.$refs['formRef'].validate((valid) => {
+  formRef.value?.validate((valid) => {
     if (valid) {
-      createBacktestTask(form.value).then((response) => {
-        proxy.$modal.msgSuccess('回测任务已创建并启动')
-        open.value = false
-        getList()
+      // 调试：打印当前表单值，关注 resultId / predictTaskId / modelSceneBindingId
+      // 注意：仅用于排查问题，确认无误后可删除
+      // eslint-disable-next-line no-console
+      console.log('[BacktestTask] submitForm 原始 form:', JSON.parse(JSON.stringify(form.value || {})))
+      const payload = {
+        taskName: form.value.taskName ?? '',
+        signalSourceType: form.value.signalSourceType ?? 'predict_table',
+        resultId: toOptionalId(form.value.resultId),
+        predictTaskId: toOptionalId(form.value.predictTaskId),
+        modelSceneBindingId: toOptionalId(form.value.modelSceneBindingId),
+        symbolList: form.value.symbolList ?? '',
+        startDate: form.value.startDate ?? '',
+        endDate: form.value.endDate ?? '',
+        initialCash: form.value.initialCash,
+        maxPosition: form.value.maxPosition,
+        commissionRate: form.value.commissionRate,
+        slippageBp: form.value.slippageBp,
+        signalBuyThreshold: form.value.signalBuyThreshold,
+        signalSellThreshold: form.value.signalSellThreshold,
+        positionMode: form.value.positionMode
+      }
+      // 将值为 null 或 undefined 的可选字段从 payload 中剔除，避免在控制台看到多余的 null，
+      // 同时保持与后端「可选字段缺省」的语义一致
+      Object.keys(payload).forEach((key) => {
+        if (payload[key] === null || payload[key] === undefined) {
+          delete payload[key]
+        }
       })
+      // 调试：打印最终请求 payload，确认三个 ID 字段在前端是否为 null/数字
+      // eslint-disable-next-line no-console
+      console.log('[BacktestTask] submitForm 组装 payload:', payload)
+      if (form.value.id) {
+        // eslint-disable-next-line no-console
+        console.log('[BacktestTask] 调用 updateBacktestTask，taskId=', form.value.id)
+        updateBacktestTask(form.value.id, payload).then((response) => {
+          // eslint-disable-next-line no-console
+          console.log('[BacktestTask] updateBacktestTask 响应:', response)
+          proxy.$modal.msgSuccess(response.msg || '任务已更新')
+          open.value = false
+          getList()
+        })
+      } else {
+        // eslint-disable-next-line no-console
+        console.log('[BacktestTask] 调用 createBacktestTask，payload=', payload)
+        createBacktestTask(payload).then((response) => {
+          // eslint-disable-next-line no-console
+          console.log('[BacktestTask] createBacktestTask 响应:', response)
+          proxy.$modal.msgSuccess(response.msg || '回测任务已创建，请点击任务运行按钮执行')
+          open.value = false
+          getList()
+        })
+      }
     }
   })
 }
@@ -321,9 +547,12 @@ function cancel() {
 /** 表单重置 */
 function reset() {
   form.value = {
+    id: undefined,
     taskName: undefined,
     signalSourceType: 'predict_table',
     resultId: undefined,
+    predictTaskId: undefined,
+    modelSceneBindingId: undefined,
     symbolList: undefined,
     startDate: undefined,
     endDate: undefined,
@@ -335,8 +564,35 @@ function reset() {
     signalSellThreshold: 0.4,
     positionMode: 'equal_weight'
   }
-  proxy.resetForm('formRef')
+  formRef.value?.resetFields()
 }
 
 getList()
 </script>
+
+<style scoped lang="scss">
+.form-section {
+  margin-bottom: 18px;
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+.form-section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.form-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
+.backtest-form {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+</style>

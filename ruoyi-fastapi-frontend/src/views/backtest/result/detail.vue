@@ -174,7 +174,7 @@ const { proxy } = getCurrentInstance()
 const route = useRoute()
 const router = useRouter()
 
-const taskId = ref(route.params.taskId)
+const taskId = computed(() => route.params.taskId)
 const loading = ref(true)
 const tradeLoading = ref(false)
 const resultDetail = ref({})
@@ -184,7 +184,7 @@ const equityChartRef = ref(null)
 let equityChart = null
 
 const tradeQueryParams = reactive({
-  taskId: parseInt(taskId.value),
+  taskId: undefined,
   tsCode: undefined,
   pageNum: 1,
   pageSize: 20
@@ -192,6 +192,7 @@ const tradeQueryParams = reactive({
 
 /** 获取结果详情 */
 function getResultDetail() {
+  if (!taskId.value) return
   loading.value = true
   getBacktestResultDetail(taskId.value).then((response) => {
     resultDetail.value = response.data || {}
@@ -275,6 +276,8 @@ function drawEquityChart() {
 
 /** 获取交易明细列表 */
 function getTradeList() {
+  tradeQueryParams.taskId = parseInt(taskId.value, 10)
+  if (!tradeQueryParams.taskId) return
   tradeLoading.value = true
   listBacktestTrade(tradeQueryParams).then((response) => {
     tradeList.value = response.rows || []
@@ -301,6 +304,12 @@ function resetTradeQuery() {
 function goBack() {
   router.back()
 }
+
+watch(taskId, () => {
+  tradeQueryParams.pageNum = 1
+  getResultDetail()
+  getTradeList()
+}, { immediate: false })
 
 onMounted(() => {
   getResultDetail()

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections import defaultdict
 from datetime import datetime
@@ -40,16 +41,31 @@ class BacktestEngine:
         symbol_list_str = (self.task.symbol_list or '').strip()
         ts_codes: list[str] | None = [code.strip() for code in symbol_list_str.split(',') if code.strip()] or None
 
+        # 离线模式：若只传了 predict_task_id，则解析出 result_id（训练任务最新成功结果）
+        effective_result_id: int | None = None
+        if self.task.signal_source_type == 'predict_table':
+            effective_result_id = self.task.result_id
+            if effective_result_id is None and self.task.predict_task_id:
+                latest = await ModelTrainResultDao.get_latest_success_result_by_task(
+                    self.db, self.task.predict_task_id
+                )
+                if not latest:
+                    raise ValueError('该预测任务没有可用的训练结果，无法回测')
+                effective_result_id = latest.id
+                logger.info(f'离线模式由 predict_task_id={self.task.predict_task_id} 解析得到 result_id={effective_result_id}')
+            if effective_result_id is None:
+                raise ValueError(
+                    '离线模式需要指定模型（result_id）或预测任务（predict_task_id），当前任务未配置。请删除任务后重新创建并选择模型。'
+                )
+
         # 如果未指定标的且为离线模式，从预测结果中推导标的列表
         if ts_codes is None and self.task.signal_source_type == 'predict_table':
-            if not self.task.result_id:
-                raise ValueError('离线模式需要指定result_id')
             logger.info(
-                f'标的列表为空，将从预测结果中推导标的集合：result_id={self.task.result_id}, '
+                f'标的列表为空，将从预测结果中推导标的集合：result_id={effective_result_id}, '
                 f'date_range={self.task.start_date}~{self.task.end_date}'
             )
             ts_codes = await BacktestSignalDao.list_ts_codes_from_predict(
-                self.db, self.task.result_id, self.task.start_date, self.task.end_date
+                self.db, effective_result_id, self.task.start_date, self.task.end_date
             )
             if not ts_codes:
                 raise ValueError('该模型在指定日期范围内没有任何预测结果，无法回测')
@@ -70,13 +86,10 @@ class BacktestEngine:
 
         # 2. 根据signal_source_type加载或生成信号
         if self.task.signal_source_type == 'predict_table':
-            # 离线模式：从model_predict_result查询
-            if not self.task.result_id:
-                raise ValueError('离线模式需要指定result_id')
-
-            logger.info(f'加载预测信号：result_id={self.task.result_id}')
+            # 离线模式：从model_predict_result查询（effective_result_id 已在上面解析）
+            logger.info(f'加载预测信号：result_id={effective_result_id}')
             signal_list = await BacktestSignalDao.get_predict_signals(
-                self.db, self.task.result_id, ts_codes, self.task.start_date, self.task.end_date
+                self.db, effective_result_id, ts_codes, self.task.start_date, self.task.end_date
             )
             if not signal_list:
                 raise ValueError('未找到预测信号数据')
@@ -100,7 +113,10 @@ class BacktestEngine:
             if joblib is None:
                 raise ImportError('joblib未安装，无法使用在线模式')
 
-            self.model = joblib.load(result.model_file_path)
+            # 在线程池中加载模型，避免阻塞事件循环导致 AsyncSession/greenlet 上下文异常
+            model_path = str(result.model_file_path)
+            loop = asyncio.get_event_loop()
+            self.model = await loop.run_in_executor(None, lambda: joblib.load(model_path))
             feature_importance = json.loads(result.feature_importance)
             self.feature_cols = list(feature_importance.keys())
             logger.info(f'模型加载完成，特征数量：{len(self.feature_cols)}')
@@ -125,6 +141,7 @@ class BacktestEngine:
         self.positions = {}
         self.trades = []
         self.navs = []
+        days_with_online_signals = 0  # 在线模式：统计有信号的天数，用于无因子数据提示
 
         # 3. 按日期循环
         total_dates = len(trade_dates)
@@ -146,6 +163,8 @@ class BacktestEngine:
                 elif self.task.signal_source_type == 'online_model':
                     # 动态生成信号
                     daily_signals = await self._generate_online_signals(date, daily_kline['ts_code'].tolist())
+                    if daily_signals:
+                        days_with_online_signals += 1
                 else:
                     daily_signals = {}
 
@@ -177,6 +196,17 @@ class BacktestEngine:
             except Exception as e:
                 logger.error(f'回测日期 {date} 处理失败：{str(e)}', exc_info=True)
                 raise
+
+        # 3.7 在线模式：若整个回测区间均无信号，提示无因子数据
+        if (
+            self.task.signal_source_type == 'online_model'
+            and total_dates > 0
+            and days_with_online_signals == 0
+        ):
+            raise ValueError(
+                '回测区间内未获取到任何因子数据（所有交易日均无信号）。'
+                '请检查该模型所用因子在所选日期、标的范围内是否有数据，或因子表与模型特征是否一致。'
+            )
 
         # 4. 计算绩效指标
         logger.info('计算绩效指标...')

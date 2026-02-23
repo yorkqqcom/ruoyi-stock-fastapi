@@ -1,8 +1,22 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
+
+
+def _optional_int_coerce(v):
+    """将字符串数字或 None 转为 int 或 None，供 result_id / predict_task_id / model_scene_binding_id 使用。"""
+    if v is None:
+        return None
+    if isinstance(v, int):
+        return v
+    if isinstance(v, str) and v.strip() == '':
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
 
 
 class BacktestTaskModel(BaseModel):
@@ -45,30 +59,138 @@ class BacktestTaskModel(BaseModel):
 
 class BacktestTaskCreateRequestModel(BaseModel):
     """
-    创建回测任务请求模型
+    创建回测任务请求模型。用 validation_alias 接受前端驼峰（taskName、resultId 等），
+    保证 FastAPI 解析 JSON body 时能正确映射；populate_by_name=True 确保别名与字段名均可用于解析。
     """
 
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(populate_by_name=True, extra='ignore')
 
-    task_name: str = Field(description='任务名称')
-    model_scene_binding_id: Optional[int] = Field(default=None, description='场景绑定ID（在线模式）')
-    predict_task_id: Optional[int] = Field(default=None, description='预测任务ID（离线模式）')
-    result_id: Optional[int] = Field(default=None, description='训练结果ID（在线模式直接指定）')
-    symbol_list: str = Field(description='标的列表（逗号分隔）')
-    start_date: str = Field(description='回测开始日期（YYYYMMDD）')
-    end_date: str = Field(description='回测结束日期（YYYYMMDD）')
-    initial_cash: Optional[float] = Field(default=1000000.0, description='初始资金')
-    max_position: Optional[float] = Field(default=1.0, description='最大仓位（0~1）')
-    commission_rate: Optional[float] = Field(default=0.0003, description='手续费率')
-    slippage_bp: Optional[int] = Field(default=0, description='滑点（基点）')
+    task_name: str = Field(
+        description='任务名称',
+        validation_alias=AliasChoices('taskName', 'task_name'),
+        serialization_alias='taskName',
+    )
+    model_scene_binding_id: Optional[int] = Field(
+        default=None,
+        description='场景绑定ID（在线模式）',
+        validation_alias=AliasChoices('modelSceneBindingId', 'model_scene_binding_id'),
+        serialization_alias='modelSceneBindingId',
+    )
+    predict_task_id: Optional[int] = Field(
+        default=None,
+        description='预测任务ID（离线模式）',
+        validation_alias=AliasChoices('predictTaskId', 'predict_task_id'),
+        serialization_alias='predictTaskId',
+    )
+    result_id: Optional[int] = Field(
+        default=None,
+        description='训练结果ID（在线模式直接指定）',
+        validation_alias=AliasChoices('resultId', 'result_id'),
+        serialization_alias='resultId',
+    )
+    symbol_list: Optional[str] = Field(
+        default='',
+        description='标的列表（逗号分隔），留空表示全部可用个股',
+        validation_alias=AliasChoices('symbolList', 'symbol_list'),
+        serialization_alias='symbolList',
+    )
+    start_date: str = Field(
+        description='回测开始日期（YYYYMMDD）',
+        validation_alias=AliasChoices('startDate', 'start_date'),
+        serialization_alias='startDate',
+    )
+    end_date: str = Field(
+        description='回测结束日期（YYYYMMDD）',
+        validation_alias=AliasChoices('endDate', 'end_date'),
+        serialization_alias='endDate',
+    )
+    initial_cash: Optional[float] = Field(
+        default=1000000.0,
+        description='初始资金',
+        validation_alias=AliasChoices('initialCash', 'initial_cash'),
+        serialization_alias='initialCash',
+    )
+    max_position: Optional[float] = Field(
+        default=1.0,
+        description='最大仓位（0~1）',
+        validation_alias=AliasChoices('maxPosition', 'max_position'),
+        serialization_alias='maxPosition',
+    )
+    commission_rate: Optional[float] = Field(
+        default=0.0003,
+        description='手续费率',
+        validation_alias=AliasChoices('commissionRate', 'commission_rate'),
+        serialization_alias='commissionRate',
+    )
+    slippage_bp: Optional[int] = Field(
+        default=0,
+        description='滑点（基点）',
+        validation_alias=AliasChoices('slippageBp', 'slippage_bp'),
+        serialization_alias='slippageBp',
+    )
     signal_source_type: Optional[Literal['predict_table', 'online_model', 'factor_rule']] = Field(
-        default='predict_table', description='信号来源类型'
+        default='predict_table',
+        description='信号来源类型',
+        validation_alias=AliasChoices('signalSourceType', 'signal_source_type'),
+        serialization_alias='signalSourceType',
     )
-    signal_buy_threshold: Optional[float] = Field(default=0.6, description='买入信号阈值')
-    signal_sell_threshold: Optional[float] = Field(default=0.4, description='卖出信号阈值')
+    signal_buy_threshold: Optional[float] = Field(
+        default=0.6,
+        description='买入信号阈值',
+        validation_alias=AliasChoices('signalBuyThreshold', 'signal_buy_threshold'),
+        serialization_alias='signalBuyThreshold',
+    )
+    signal_sell_threshold: Optional[float] = Field(
+        default=0.4,
+        description='卖出信号阈值',
+        validation_alias=AliasChoices('signalSellThreshold', 'signal_sell_threshold'),
+        serialization_alias='signalSellThreshold',
+    )
     position_mode: Optional[Literal['single_stock', 'equal_weight']] = Field(
-        default='equal_weight', description='持仓模式'
+        default='equal_weight',
+        description='持仓模式',
+        validation_alias=AliasChoices('positionMode', 'position_mode'),
+        serialization_alias='positionMode',
     )
+
+    @field_validator('result_id', 'predict_task_id', 'model_scene_binding_id', mode='before')
+    @classmethod
+    def coerce_optional_int(cls, v):
+        return _optional_int_coerce(v)
+
+
+class BacktestTaskUpdateRequestModel(BaseModel):
+    """
+    更新回测任务请求模型（仅允许待执行/失败任务，用于补填模型等）。
+    使用 alias_generator=to_camel + populate_by_name，接受前端驼峰与下划线两种键名。
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra='ignore')
+
+    task_name: Optional[str] = Field(default=None, description='任务名称')
+    model_scene_binding_id: Optional[int] = Field(default=None, description='场景绑定ID')
+    predict_task_id: Optional[int] = Field(default=None, description='预测任务ID（离线模式）')
+    result_id: Optional[int] = Field(default=None, description='训练结果ID')
+    symbol_list: Optional[str] = Field(default=None, description='标的列表（逗号分隔）')
+    start_date: Optional[str] = Field(default=None, description='回测开始日期（YYYYMMDD）')
+    end_date: Optional[str] = Field(default=None, description='回测结束日期（YYYYMMDD）')
+    initial_cash: Optional[float] = Field(default=None, description='初始资金')
+    max_position: Optional[float] = Field(default=None, description='最大仓位（0~1）')
+    commission_rate: Optional[float] = Field(default=None, description='手续费率')
+    slippage_bp: Optional[int] = Field(default=None, description='滑点（基点）')
+    signal_source_type: Optional[Literal['predict_table', 'online_model', 'factor_rule']] = Field(
+        default=None, description='信号来源类型'
+    )
+    signal_buy_threshold: Optional[float] = Field(default=None, description='买入信号阈值')
+    signal_sell_threshold: Optional[float] = Field(default=None, description='卖出信号阈值')
+    position_mode: Optional[Literal['single_stock', 'equal_weight']] = Field(
+        default=None, description='持仓模式'
+    )
+
+    @field_validator('result_id', 'predict_task_id', 'model_scene_binding_id', mode='before')
+    @classmethod
+    def coerce_optional_int(cls, v):
+        return _optional_int_coerce(v)
 
 
 class BacktestTaskQueryModel(BaseModel):

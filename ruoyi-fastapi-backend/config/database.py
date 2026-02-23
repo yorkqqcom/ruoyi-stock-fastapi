@@ -23,7 +23,12 @@ async_engine = create_async_engine(
     pool_recycle=DataBaseConfig.db_pool_recycle,
     pool_timeout=DataBaseConfig.db_pool_timeout,
 )
-AsyncSessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=async_engine)
+AsyncSessionLocal = async_sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+    bind=async_engine,
+)
 
 
 class Base(AsyncAttrs, DeclarativeBase):

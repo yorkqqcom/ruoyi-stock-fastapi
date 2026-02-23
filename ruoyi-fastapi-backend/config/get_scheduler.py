@@ -423,8 +423,8 @@ class SchedulerUtil:
                     job_executor = query_job_info.get('executor')
                     # 获取调用目标字符串
                     invoke_target = query_job_info.get('func')
-                    # 获取调用函数位置参数
-                    job_args = ','.join(query_job_info.get('args', []))
+                    # 获取调用函数位置参数（args 可能含 int 等，需转为 str 再 join）
+                    job_args = ','.join(str(a) for a in query_job_info.get('args', []))
                     # 获取调用函数关键字参数
                     job_kwargs = json.dumps(query_job_info.get('kwargs', {}))
                     # 获取任务触发器

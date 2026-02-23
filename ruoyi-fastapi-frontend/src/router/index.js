@@ -158,6 +158,20 @@ export const dynamicRoutes = [
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
       }
     ]
+  },
+  {
+    path: '/backtest/result/detail',
+    component: Layout,
+    hidden: true,
+    permissions: ['backtest:result:query'],
+    children: [
+      {
+        path: ':taskId',
+        component: () => import('@/views/backtest/result/detail'),
+        name: 'BacktestResultDetail',
+        meta: { title: '回测结果详情', activeMenu: '/backtest/task' }
+      }
+    ]
   }
 ]
 

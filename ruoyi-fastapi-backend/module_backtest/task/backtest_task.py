@@ -6,8 +6,24 @@ from urllib.parse import quote_plus
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from config.env import DataBaseConfig
+from module_backtest.dao.backtest_dao import BacktestTaskDao
 from module_backtest.service.backtest_service import BacktestService
 from utils.log_util import logger
+
+
+def run_backtest_job(task_id: int) -> None:
+    """
+    供调度器调用的同步入口（与数据下载 task_wrapper 一致）
+    仅传 task_id，内部调用 run_backtest_task_sync。
+
+    :param task_id: 任务ID
+    """
+    try:
+        logger.info(f'回测任务调度开始执行，任务ID：{task_id}')
+        run_backtest_task_sync(None, task_id)
+        logger.info(f'回测任务调度执行完成，任务ID：{task_id}')
+    except Exception as e:
+        logger.exception(f'回测任务调度执行失败，任务ID：{task_id}，错误：{e}')
 
 
 def run_backtest_task_sync(db_session_factory: Any, task_id: int) -> None:
@@ -44,9 +60,14 @@ def run_backtest_task_sync(db_session_factory: Any, task_id: int) -> None:
             pool_recycle=DataBaseConfig.db_pool_recycle,
             pool_timeout=DataBaseConfig.db_pool_timeout,
         )
-        ThreadSessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=thread_engine)
+        ThreadSessionLocal = async_sessionmaker(
+            autocommit=False,
+            autoflush=False,
+            expire_on_commit=False,
+            bind=thread_engine,
+        )
 
-        # 使用新会话运行回测任务
+        # 使用新会话运行回测任务；失败时用独立新会话更新状态，避免已损坏的 db 触发 greenlet 二次异常
         async def run_async():
             async with ThreadSessionLocal() as db:
                 try:
@@ -55,6 +76,12 @@ def run_backtest_task_sync(db_session_factory: Any, task_id: int) -> None:
                     logger.info(f'回测任务执行成功，任务ID：{task_id}')
                 except Exception as e:
                     logger.error(f'回测任务执行异常，任务ID：{task_id}，错误：{str(e)}', exc_info=True)
+                    try:
+                        async with ThreadSessionLocal() as db2:
+                            await BacktestTaskDao.update_task_status(db2, task_id, '3', error_msg=str(e))
+                            await db2.commit()
+                    except Exception as update_err:
+                        logger.error(f'更新任务失败状态异常，任务ID：{task_id}，错误：{str(update_err)}')
 
         # 运行异步函数
         loop.run_until_complete(run_async())
