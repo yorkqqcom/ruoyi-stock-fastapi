@@ -144,18 +144,18 @@
     />
 
     <!-- 添加/编辑回测任务对话框 -->
-    <el-dialog :title="title" v-model="open" width="980px" append-to-body>
+    <el-dialog :title="title" v-model="open" width="980px" append-to-body class="backtest-dialog">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="backtest-form">
         <!-- 基础信息 -->
         <div class="form-section">
           <div class="form-section-title">基础信息</div>
           <el-row :gutter="20">
-            <el-col :span="12">
+            <el-col :xs="24" :sm="24" :md="12">
               <el-form-item label="任务名称" prop="taskName">
                 <el-input v-model="form.taskName" placeholder="请输入任务名称" />
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :xs="24" :sm="24" :md="12">
               <el-form-item label="信号来源" prop="signalSourceType">
                 <el-select v-model="form.signalSourceType" placeholder="请选择信号来源" @change="onSignalSourceChange" style="width: 100%">
                   <el-option label="预测表（离线）" value="predict_table" />
@@ -197,7 +197,7 @@
         <div class="form-section">
           <div class="form-section-title">回测区间与资金</div>
           <el-row :gutter="20">
-            <el-col :span="8">
+            <el-col :xs="24" :sm="12" :md="12">
               <el-form-item label="开始日期" prop="startDate">
                 <el-date-picker
                   v-model="form.startDate"
@@ -209,7 +209,7 @@
                 />
               </el-form-item>
             </el-col>
-            <el-col :span="8">
+            <el-col :xs="24" :sm="12" :md="12">
               <el-form-item label="结束日期" prop="endDate">
                 <el-date-picker
                   v-model="form.endDate"
@@ -221,20 +221,20 @@
                 />
               </el-form-item>
             </el-col>
-            <el-col :span="8">
+          </el-row>
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="24" :md="8">
               <el-form-item label="初始资金" prop="initialCash">
                 <el-input-number v-model="form.initialCash" :min="1000" :step="10000" style="width: 100%" />
               </el-form-item>
             </el-col>
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :span="12">
+            <el-col :xs="24" :sm="24" :md="8">
               <el-form-item label="最大仓位" prop="maxPosition">
                 <el-input-number v-model="form.maxPosition" :min="0" :max="1" :step="0.1" style="width: 100%" />
                 <div class="form-hint">0~1，1表示满仓</div>
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :xs="24" :sm="24" :md="8">
               <el-form-item label="手续费率" prop="commissionRate">
                 <el-input-number v-model="form.commissionRate" :min="0" :max="0.01" :step="0.0001" style="width: 100%" />
                 <div class="form-hint">默认0.0003（万三）</div>
@@ -247,13 +247,13 @@
         <div class="form-section">
           <div class="form-section-title">信号与阈值</div>
           <el-row :gutter="20">
-            <el-col :span="12">
+            <el-col :xs="24" :sm="24" :md="12">
               <el-form-item label="买入阈值" prop="signalBuyThreshold">
                 <el-input-number v-model="form.signalBuyThreshold" :min="0" :max="1" :step="0.1" style="width: 100%" />
                 <div class="form-hint">predict_prob需大于此值才买入</div>
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :xs="24" :sm="24" :md="12">
               <el-form-item label="卖出阈值" prop="signalSellThreshold">
                 <el-input-number v-model="form.signalSellThreshold" :min="0" :max="1" :step="0.1" style="width: 100%" />
                 <div class="form-hint">predict_prob需小于此值才卖出</div>
@@ -573,6 +573,10 @@ getList()
 <style scoped lang="scss">
 .form-section {
   margin-bottom: 18px;
+  padding: 16px 20px 12px;
+  border-radius: 8px;
+  background-color: #fff;
+  border: 1px solid var(--el-border-color-lighter);
   &:last-of-type {
     margin-bottom: 0;
   }
@@ -594,5 +598,11 @@ getList()
 .backtest-form {
   max-height: 70vh;
   overflow-y: auto;
+}
+.backtest-dialog {
+  :deep(.el-dialog__body) {
+    padding: 16px 24px 12px;
+    background-color: #f5f7fa;
+  }
 }
 </style>
