@@ -23,6 +23,7 @@
 - **开发工具**：代码生成、系统接口、表单构建
 - **Tushare 数据管理**：接口配置、下载任务、下载日志
 - **因子与模型**：因子定义、因子计算任务、因子值查询、模型训练任务、训练结果、模型预测（新增）
+- **回测管理**：基于预测结果或在线模型的回测任务管理、回测结果指标、交易明细与日度净值，可串联数据下载 → 因子 → 模型 → 回测的完整链路
 
 ## 快速开始
 
@@ -67,6 +68,9 @@ pip install -r requirements-pg.txt     # PostgreSQL（含 asyncpg）
 # 4）模型训练模块（训练任务、结果、预测等）
 #    MySQL: sql/model_train_mysql.sql
 #    PostgreSQL: sql/model_train_pg.sql
+# 5）回测模块（回测任务、结果、交易明细、日度净值 + 菜单）
+#    MySQL: sql/backtest_mysql.sql
+#    PostgreSQL: sql/backtest_pg.sql
 
 # 启动后端（--env 可选：dev / prod / dockermy / dockerpg）
 python app.py --env=dev
@@ -108,6 +112,16 @@ npm run dev
 - **因子定义**：可在后台维护，或使用项目根目录下 `tools/generate_factor_sql.py` 根据 `features/` 中的特征生成 `factor_definition` 的 SQL（输出到 `ruoyi-fastapi-backend/sql/factor_definition_auto.sql`），再按需合并到 factor 相关脚本。
 - **因子计算**：依赖已落地的行情/因子数据表（如 Tushare 下载结果），通过「因子管理」相关菜单配置计算任务与查看因子值、计算日志。
 - **模型训练与预测**：需先有 `factor_value` 等数据，再在「模型管理」中创建训练任务、查看结果、执行预测。  
+
+### 回测管理
+
+- 在执行完回测相关 SQL（`sql/backtest_mysql.sql` 或 `sql/backtest_pg.sql`）后，系统会自动创建回测相关表（任务、结果、交易明细、日度净值）及「回测管理」菜单。
+- 在前端「回测管理」中，可以：
+  - 创建回测任务：选择信号来源（离线预测表 / 在线模型）、回测区间、标的列表、初始资金、仓位、手续费与买卖阈值等；
+  - 异步执行回测：任务统一管理执行状态与进度，支持失败原因记录；
+  - 查看回测结果：包括总收益、年化收益率、最大回撤、夏普、交易次数以及完整净值曲线；
+  - 查看交易明细与日度净值：支持按任务 ID 回看每一笔交易和每天的账户净值，用于复盘与诊断策略表现。
+
 
 ## 注意事项
 
